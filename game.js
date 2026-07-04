@@ -99,6 +99,47 @@
   };
 
   const crystalFrames = [path("background/TPB-01.png"), path("background/TPB-02.png")];
+  const buttonImages = [
+    "START-01.png",
+    "START-02.png",
+    "STOP-01.png",
+    "STOP-02.png",
+    "RESTART-01.png",
+    "RESTART-02.png",
+    "GOTP-01.png",
+    "GOTP-02.png",
+    "MENU-01.png",
+    "MENU-02.png",
+    "GO-01.png",
+    "GO-02.png",
+  ].map((fileName) => path(`Button/${fileName}`));
+  const preloadImages = [
+    path("background/bg_00.png"),
+    path("background/bg_06.png"),
+    path("background/bg_01.png"),
+    path("background/bg_02.png"),
+    path("background/bg_03.png"),
+    path("background/bg_04.png"),
+    path("background/bg_05.png"),
+    path("background/bg_Bwall.png"),
+    path("background/bg_LRUwall.png"),
+    path("background/Leaderboard_01.png"),
+    path("background/Leaderboard_02.png"),
+    path("background/Leaderboard_03.png"),
+    path("background/LOGO_01.png"),
+    path("background/LOGO_02.png"),
+    path("background/LOGO_03.png"),
+    path("background/gameover logo.png"),
+    path("background/platform_01.png"),
+    path("background/platform_02.png"),
+    path("background/platform_03.png"),
+    ...Array.from({ length: 5 }, (_, i) => path(`cloud/cloud_0${i + 1}.png`)),
+    ...powerImages,
+    ...Object.values(digitImages),
+    ...Object.values(roleFrames).flat(),
+    ...crystalFrames,
+    ...buttonImages,
+  ];
 
   const soundConfig = {
     button: { file: "Button.mp3", volume: 0.55 },
@@ -170,6 +211,7 @@
   const dom = {
     viewport: $("viewport"),
     stage: $("stage"),
+    loadingOverlay: $("loadingOverlay"),
     splashScreen: $("splashScreen"),
     menuScreen: $("menuScreen"),
     gameScreen: $("gameScreen"),
@@ -372,6 +414,34 @@
     const rect = dom.viewport.getBoundingClientRect();
     state.scale = rect.width / W;
     dom.stage.style.setProperty("--stage-scale", state.scale);
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        if (img.decode) {
+          img.decode().then(resolve).catch(resolve);
+        } else {
+          resolve();
+        }
+      };
+      img.onerror = resolve;
+      img.src = src;
+    });
+  }
+
+  function preloadRequiredImages() {
+    const uniqueImages = [...new Set(preloadImages)];
+    const imageLoads = Promise.all(uniqueImages.map(loadImage));
+    const timeout = new Promise((resolve) => window.setTimeout(resolve, 4500));
+    return Promise.race([imageLoads, timeout]);
+  }
+
+  function hideLoadingOverlay() {
+    if (!dom.loadingOverlay) return;
+    dom.loadingOverlay.classList.add("hidden");
+    window.setTimeout(() => dom.loadingOverlay.remove(), 260);
   }
 
   function pressImageButton(button) {
@@ -1598,7 +1668,7 @@
     requestAnimationFrame(loop);
   }
 
-  function boot() {
+  async function boot() {
     resizeStage();
     window.addEventListener("resize", resizeStage);
     window.addEventListener("orientationchange", () => window.setTimeout(resizeStage, 120));
@@ -1608,6 +1678,8 @@
     setupButtons();
     renderMenuRecords();
     renderFloorDigits(0);
+    await preloadRequiredImages();
+    hideLoadingOverlay();
     const params = new URLSearchParams(window.location.search);
     if (params.get("admin") === "1") {
       setMode("admin");

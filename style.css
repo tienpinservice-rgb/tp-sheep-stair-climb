@@ -63,6 +63,34 @@ input {
   transform-origin: left top;
 }
 
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: #80cfdf;
+  color: #fff8cc;
+  font-size: clamp(18px, 4.8vw, 28px);
+  font-weight: 900;
+  letter-spacing: 0;
+  text-shadow:
+    2px 2px 0 #5d3516,
+    -2px 2px 0 #5d3516,
+    2px -2px 0 #5d3516,
+    -2px -2px 0 #5d3516;
+  transition: opacity 220ms ease;
+}
+
+.loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-overlay span {
+  animation: loadingPulse 900ms ease-in-out infinite;
+}
+
 .screen {
   position: absolute;
   inset: 0;
@@ -156,6 +184,16 @@ img {
   to {
     opacity: 0.96;
     scale: 1;
+  }
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
   }
 }
 
