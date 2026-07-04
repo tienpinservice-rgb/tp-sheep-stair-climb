@@ -106,8 +106,10 @@
             </div>
           </section>
         </div>
-        <div id="loadingOverlay" class="loading-overlay" aria-live="polite">
-          <span>LOADING</span>
+        <div id="loadingOverlay" class="loading-overlay" aria-label="素材載入中">
+          <div class="loading-track" aria-hidden="true">
+            <div id="loadingFill" class="loading-fill"></div>
+          </div>
         </div>
       </div>
     </main>

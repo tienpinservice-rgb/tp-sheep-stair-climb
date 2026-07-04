@@ -51,6 +51,8 @@
   const CRYSTAL_H = 28;
   const CRYSTAL_INCLUDE_FLOOR_ZERO = true;
   const CRYSTAL_BLINK_SPEED = 2.5;
+  const CRYSTAL_FLOAT_AMOUNT = 4;
+  const CRYSTAL_FLOAT_SPEED = 3.4;
   const CRYSTAL_FIRST_FLOOR = 10;
   const CRYSTAL_FLOOR_INTERVAL = 10;
   const DOUBLE_JUMP_GRANT = 3;
@@ -60,6 +62,8 @@
   const soundPath = (fileName) => `${SOUND}/${fileName}`;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const rand = (min, max) => min + Math.random() * (max - min);
+  const isSpaceKey = (event) => event.code === "Space" || event.key === " ";
+  const isEnterKey = (event) => event.code === "Enter" || event.key === "Enter";
   const heroLeftThirdX = () => state.hero.x + HERO_LEFT_THIRD_X;
   const heroRightThirdX = () => state.hero.x + HERO_RIGHT_THIRD_X;
   const supportInView = (worldY, margin = 0) => worldY - state.cameraY < H - margin;
@@ -212,6 +216,7 @@
     viewport: $("viewport"),
     stage: $("stage"),
     loadingOverlay: $("loadingOverlay"),
+    loadingFill: $("loadingFill"),
     splashScreen: $("splashScreen"),
     menuScreen: $("menuScreen"),
     gameScreen: $("gameScreen"),
@@ -260,6 +265,7 @@
     cloudSpawnTimer: 0,
     nextCloudSpawnDelay: 0.8,
     charging: false,
+    inputHeld: false,
     chargeMs: 0,
     chargeStartedAt: 0,
     chargeLevel: 0,
@@ -433,13 +439,28 @@
 
   function preloadRequiredImages() {
     const uniqueImages = [...new Set(preloadImages)];
-    const imageLoads = Promise.all(uniqueImages.map(loadImage));
+    let loaded = 0;
+    const updateLoadingProgress = () => {
+      if (!dom.loadingFill) return;
+      const percent = uniqueImages.length ? Math.round((loaded / uniqueImages.length) * 100) : 100;
+      dom.loadingFill.style.width = `${percent}%`;
+    };
+    updateLoadingProgress();
+    const imageLoads = Promise.all(
+      uniqueImages.map((src) =>
+        loadImage(src).then(() => {
+          loaded += 1;
+          updateLoadingProgress();
+        }),
+      ),
+    );
     const timeout = new Promise((resolve) => window.setTimeout(resolve, 4500));
     return Promise.race([imageLoads, timeout]);
   }
 
   function hideLoadingOverlay() {
     if (!dom.loadingOverlay) return;
+    if (dom.loadingFill) dom.loadingFill.style.width = "100%";
     dom.loadingOverlay.classList.add("hidden");
     window.setTimeout(() => dom.loadingOverlay.remove(), 260);
   }
@@ -481,6 +502,7 @@
     state.cloudSpawnTimer = 0;
     state.nextCloudSpawnDelay = rand(0.45, 1.25);
     state.charging = false;
+    state.inputHeld = false;
     state.chargeMs = 0;
     state.chargeStartedAt = 0;
     state.chargeLevel = 0;
@@ -816,6 +838,7 @@
       crystalEl: null,
       crystalFloor: null,
       crystalCollected: false,
+      crystalFloatY: 0,
     };
     state.platforms.push(platform);
     return platform;
@@ -972,8 +995,9 @@
     state.platforms.forEach((platform) => {
       if (!platform.crystalEl || platform.crystalCollected) return;
       platform.crystalEl.src = frame;
+      platform.crystalFloatY = Math.sin(elapsed * CRYSTAL_FLOAT_SPEED + platform.id * 0.72) * CRYSTAL_FLOAT_AMOUNT;
       const crystalX = platform.x + platform.width / 2 - CRYSTAL_W / 2;
-      const crystalY = platform.y - CRYSTAL_H - 8;
+      const crystalY = platform.y - CRYSTAL_H - 8 + platform.crystalFloatY;
       const overlaps =
         heroRight >= crystalX &&
         heroLeft <= crystalX + CRYSTAL_W &&
@@ -1036,7 +1060,9 @@
 
   function togglePause() {
     if (state.mode === "playing") {
+      state.inputHeld = false;
       state.charging = false;
+      updatePower(0);
       setMode("paused");
     } else if (state.mode === "paused") {
       setMode("playing");
@@ -1173,6 +1199,11 @@
     updatePower(0);
   }
 
+  function resumeChargeIfInputHeld() {
+    if (!state.inputHeld || state.mode !== "playing" || state.charging) return;
+    beginCharge();
+  }
+
   function syncChargeMeter() {
     if (!state.charging) return;
     state.chargeMs = Math.max(0, performance.now() - state.chargeStartedAt);
@@ -1266,6 +1297,7 @@
       hero.surface = "ground";
       hero.action = state.charging ? "charge" : "stay";
       resetChargeMeter();
+      resumeChargeIfInputHeld();
       playSound("landing");
     }
   }
@@ -1278,6 +1310,7 @@
     hero.surface = platform.id;
     hero.action = "stay";
     resetChargeMeter();
+    resumeChargeIfInputHeld();
     playSound("landing");
 
     if (!platform.landed && platform.y < GROUND_Y - 26) platform.landed = true;
@@ -1319,7 +1352,7 @@
       platform.el.style.transform = `translate3d(${platform.x}px, ${screenY}px, 0)`;
       if (platform.crystalEl && !platform.crystalCollected) {
         const crystalX = platform.x + platform.width / 2 - CRYSTAL_W / 2;
-        const crystalY = screenY - CRYSTAL_H - 8;
+        const crystalY = screenY - CRYSTAL_H - 8 + (platform.crystalFloatY || 0);
         platform.crystalEl.style.transform = `translate3d(${crystalX}px, ${crystalY}px, 0)`;
       }
     });
@@ -1338,6 +1371,7 @@
     const heroBottom = state.hero.y - state.cameraY;
     const groundGone = GROUND_Y - state.cameraY > H + 4;
     if (!state.gameOverPending && groundGone && heroBottom > H + 35) {
+      state.inputHeld = false;
       state.charging = false;
       playSound("fallHero");
       state.gameOverPending = true;
@@ -1368,6 +1402,7 @@
   }
 
   function endGame() {
+    state.inputHeld = false;
     state.charging = false;
     state.gameOverPending = false;
     state.gameOverDelay = 0;
@@ -1522,11 +1557,12 @@
     const immediateBeginFromEvent = (event) => {
       if (!canStartChargeFromEvent(event)) return;
       event.preventDefault();
+      state.inputHeld = true;
       beginCharge();
     };
     const immediateReleaseFromEvent = (event) => {
-      if (!state.charging) return;
-      event.preventDefault();
+      if (state.inputHeld || state.charging) event.preventDefault();
+      state.inputHeld = false;
       releaseCharge();
     };
 
@@ -1534,7 +1570,14 @@
     document.addEventListener("mouseup", immediateReleaseFromEvent, { capture: true });
     document.addEventListener("touchstart", immediateBeginFromEvent, { capture: true, passive: false });
     document.addEventListener("touchend", immediateReleaseFromEvent, { capture: true, passive: false });
-    document.addEventListener("touchcancel", () => releaseCharge(), { capture: true });
+    document.addEventListener(
+      "touchcancel",
+      () => {
+        state.inputHeld = false;
+        releaseCharge();
+      },
+      { capture: true },
+    );
 
     dom.viewport.addEventListener("pointerdown", (event) => {
       if (state.mode !== "playing") return;
@@ -1547,27 +1590,38 @@
           // Some browsers reject capture for synthetic or already-ended pointers.
         }
       }
+      state.inputHeld = true;
       beginCharge();
     });
 
     dom.viewport.addEventListener("pointerup", (event) => {
       if (state.mode !== "playing") return;
       event.preventDefault();
+      state.inputHeld = false;
       releaseCharge();
     });
 
-    dom.viewport.addEventListener("pointercancel", () => releaseCharge());
-    dom.viewport.addEventListener("pointerleave", () => releaseCharge());
+    dom.viewport.addEventListener("pointercancel", () => {
+      state.inputHeld = false;
+      releaseCharge();
+    });
+    dom.viewport.addEventListener("pointerleave", () => {
+      state.inputHeld = false;
+      releaseCharge();
+    });
     window.addEventListener(
       "pointerup",
       (event) => {
-        if (!state.charging) return;
-        event.preventDefault();
+        if (state.inputHeld || state.charging) event.preventDefault();
+        state.inputHeld = false;
         releaseCharge();
       },
       { passive: false },
     );
-    window.addEventListener("pointercancel", () => releaseCharge());
+    window.addEventListener("pointercancel", () => {
+      state.inputHeld = false;
+      releaseCharge();
+    });
 
     dom.viewport.addEventListener(
       "touchstart",
@@ -1575,6 +1629,7 @@
         if (state.mode !== "playing") return;
         if (event.target.closest("#pauseButton")) return;
         event.preventDefault();
+        state.inputHeld = true;
         beginCharge();
       },
       { passive: false },
@@ -1582,18 +1637,22 @@
     window.addEventListener(
       "touchend",
       (event) => {
-        if (!state.charging) return;
-        event.preventDefault();
+        if (state.inputHeld || state.charging) event.preventDefault();
+        state.inputHeld = false;
         releaseCharge();
       },
       { passive: false },
     );
-    window.addEventListener("touchcancel", () => releaseCharge());
+    window.addEventListener("touchcancel", () => {
+      state.inputHeld = false;
+      releaseCharge();
+    });
     dom.viewport.addEventListener(
       "touchend",
       (event) => {
         if (state.mode !== "playing") return;
         event.preventDefault();
+        state.inputHeld = false;
         releaseCharge();
       },
       { passive: false },
@@ -1646,14 +1705,23 @@
         setMode("admin");
       }
       if (event.key === "Escape" && state.mode === "admin") setMode("menu");
-      if (event.key === " " && state.mode === "playing") {
+      if (isEnterKey(event) && (state.mode === "playing" || state.mode === "paused")) {
         event.preventDefault();
+        state.inputHeld = false;
+        releaseCharge();
+        togglePause();
+        return;
+      }
+      if (isSpaceKey(event) && state.mode === "playing") {
+        event.preventDefault();
+        state.inputHeld = true;
         if (!state.charging) beginCharge();
       }
     });
     window.addEventListener("keyup", (event) => {
-      if (event.key === " ") {
+      if (isSpaceKey(event) && (state.inputHeld || state.charging || state.mode === "playing")) {
         event.preventDefault();
+        state.inputHeld = false;
         releaseCharge();
       }
     });
