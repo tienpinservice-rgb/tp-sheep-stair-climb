@@ -23,6 +23,7 @@
   const HERO_RIGHT_THIRD_X = (HERO_W * 2) / 3;
   const HERO_BASE_SPEED = 78;
   const HERO_JUMP_DISTANCE_MULTIPLIER = 1.3;
+  const MAX_FLOOR = 999;
   const PLATFORM_SUPPORT_INSET = 8;
   const PLATFORM_CHARGE_INSET = 0;
   const PLATFORM_W = 90;
@@ -39,7 +40,7 @@
   const PLATFORM_Y_JITTER = 2;
   const BRANCH_PLATFORM_MIN_X_DELTA = 118;
   const BRANCH_WALL_CHANCE = 0.12;
-  const DROP_PLATFORM_START_FLOOR = 15;
+  const DROP_PLATFORM_START_FLOOR = 10;
   const DROP_PLATFORM_SHAKE_DELAY = 0.5;
   const DROP_PLATFORM_FALL_GRAVITY = 360;
   const MOVING_AXIS_PATTERN = ["x", "x", "y", "x", "x", "y", "x", "x", "y", "x"];
@@ -728,12 +729,24 @@
   }
 
   function dropPlatformChanceForFloor(floor) {
-    if (floor >= 75) return 0.7;
-    if (floor >= 65) return 0.6;
-    if (floor >= 55) return 0.5;
-    if (floor >= 45) return 0.3;
-    if (floor >= 35) return 0.25;
-    if (floor >= DROP_PLATFORM_START_FLOOR) return 0.2;
+    if (floor >= 910) return 1;
+    if (floor >= 900) return 0.9;
+    if (floor >= 800) return 0.85;
+    if (floor >= 700) return 0.8;
+    if (floor >= 600) return 0.75;
+    if (floor >= 500) return 0.7;
+    if (floor >= 300) return 0.65;
+    if (floor >= 200) return 0.6;
+    if (floor >= 100) return 0.55;
+    if (floor >= 90) return 0.5;
+    if (floor >= 80) return 0.45;
+    if (floor >= 70) return 0.4;
+    if (floor >= 60) return 0.35;
+    if (floor >= 50) return 0.3;
+    if (floor >= 40) return 0.25;
+    if (floor >= 30) return 0.2;
+    if (floor >= 20) return 0.15;
+    if (floor >= DROP_PLATFORM_START_FLOOR) return 0.1;
     return 0;
   }
 
@@ -1332,7 +1345,11 @@
         state.cameraLiftRemainder += cameraLift;
         while (state.cameraLiftRemainder >= PLATFORM_REQUIRED_STEP_Y) {
           state.cameraLiftRemainder -= PLATFORM_REQUIRED_STEP_Y;
-          state.floor += 1;
+          state.floor = Math.min(MAX_FLOOR, state.floor + 1);
+          if (state.floor >= MAX_FLOOR) {
+            state.cameraLiftRemainder = 0;
+            break;
+          }
         }
         renderFloorDigits(state.floor);
       }
@@ -1368,6 +1385,14 @@
   }
 
   function checkGameOver() {
+    if (!state.gameOverPending && state.floor >= MAX_FLOOR) {
+      state.inputHeld = false;
+      state.charging = false;
+      updatePower(0);
+      endGame();
+      return;
+    }
+
     const heroBottom = state.hero.y - state.cameraY;
     const groundGone = GROUND_Y - state.cameraY > H + 4;
     if (!state.gameOverPending && groundGone && heroBottom > H + 35) {
