@@ -7,6 +7,8 @@
   const SOUND = "sound";
   const RANK_LIMIT = 5;
   const STORAGE_KEY = "sheepStairClimbDataV1";
+  const DEVICE_ID_KEY = "sheepStairClimbDeviceIdV1";
+  const SUPABASE_CONFIG = window.SHEEP_SUPABASE || {};
   const GOTO_LINKS = [
     "https://www.tienpin.com.tw",
     "https://www.youtube.com/@%E5%A4%A9%E5%93%81%E5%B1%B1%E8%8E%8A%E5%9F%BA%E7%9D%A3%E5%BE%92%E5%A2%93%E5%9C%92/videos",
@@ -72,8 +74,8 @@
     const d = new Date();
     const pad = (n) => String(n).padStart(2, "0");
     return {
-      iso: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
-      label: `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      iso: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`,
+      label: `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`,
     };
   };
 
@@ -306,6 +308,10 @@
     },
     platforms: [],
     clouds: [],
+    cloudEnabled: false,
+    cloudLoaded: false,
+    cloudPlayers: [],
+    cloudPersonalBest: null,
   };
 
   const defaultData = () => ({
@@ -341,12 +347,84 @@
     renderMenuRecords();
   }
 
+  function getOrCreateDeviceId() {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (id) return id;
+    const randomPart = window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    id = `sheep_${randomPart}`;
+    localStorage.setItem(DEVICE_ID_KEY, id);
+    return id;
+  }
+
+  function cloudConfigured() {
+    return Boolean(
+      SUPABASE_CONFIG.url &&
+      SUPABASE_CONFIG.anonKey &&
+      /^https?:\/\//.test(SUPABASE_CONFIG.url) &&
+      !SUPABASE_CONFIG.anonKey.includes("YOUR_"),
+    );
+  }
+
+  function cloudHeaders(extra = {}) {
+    return {
+      apikey: SUPABASE_CONFIG.anonKey,
+      Authorization: `Bearer ${SUPABASE_CONFIG.anonKey}`,
+      "Content-Type": "application/json",
+      ...extra,
+    };
+  }
+
+  async function cloudRequest(pathname, options = {}) {
+    if (!cloudConfigured()) throw new Error("Supabase is not configured.");
+    const url = `${SUPABASE_CONFIG.url.replace(/\/$/, "")}/rest/v1/${pathname}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: cloudHeaders(options.headers || {}),
+    });
+    if (!response.ok) throw new Error(`Supabase ${response.status}`);
+    if (response.status === 204) return null;
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  function mapCloudEntry(entry) {
+    return {
+      id: entry.id,
+      name: entry.player_name || "未命名",
+      bestFloor: Number(entry.floor || entry.best_floor || 0),
+      bestTimeIso: entry.submitted_at || entry.last_played_at || "",
+      bestTimeLabel: formatCloudTime(entry.submitted_at || entry.last_played_at),
+      playCount: Number(entry.play_count || 1),
+    };
+  }
+
+  function formatCloudTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  function getActiveData() {
+    if (state.cloudLoaded) {
+      return {
+        ...defaultData(),
+        players: state.cloudPlayers,
+        totalUniquePlayers: state.cloudPlayers.length,
+      };
+    }
+    return loadData();
+  }
+
   function topPlayers() {
-    return [...loadData().players].sort((a, b) => b.bestFloor - a.bestFloor).slice(0, RANK_LIMIT);
+    return [...getActiveData().players].sort((a, b) => b.bestFloor - a.bestFloor).slice(0, RANK_LIMIT);
   }
 
   function bestPlayer() {
-    return topPlayers()[0] || null;
+    return state.cloudLoaded && state.cloudPersonalBest ? state.cloudPersonalBest : topPlayers()[0] || null;
   }
 
   function isTopFive(floor) {
@@ -375,7 +453,7 @@
   }
 
   function renderMenuRecords() {
-    const data = loadData();
+    const data = getActiveData();
     const players = [...data.players].sort((a, b) => b.bestFloor - a.bestFloor);
     dom.menuLeaderboard.textContent = "";
     for (let i = 0; i < RANK_LIMIT; i += 1) {
@@ -385,10 +463,79 @@
       dom.menuLeaderboard.appendChild(li);
     }
 
-    const best = players[0];
+    const best = state.cloudLoaded && state.cloudPersonalBest ? state.cloudPersonalBest : players[0];
     dom.personalBest.textContent = best
       ? `最高：${best.name || "未命名"} ${best.bestTimeLabel || ""} ${formatFloor(best.bestFloor)}`
       : "";
+  }
+
+  async function refreshCloudRecords() {
+    if (!cloudConfigured()) return;
+    try {
+      state.cloudEnabled = true;
+      const deviceId = getOrCreateDeviceId();
+      const [leaderboard, personalBest] = await Promise.all([
+        cloudRequest(`leaderboard_public?select=id,player_name,floor,submitted_at&order=floor.desc,submitted_at.asc&limit=${RANK_LIMIT}`),
+        cloudRequest(`player_best_scores?select=player_device_id,best_floor,last_played_at,play_count&player_device_id=eq.${encodeURIComponent(deviceId)}&limit=1`),
+      ]);
+      state.cloudPlayers = Array.isArray(leaderboard) ? leaderboard.map(mapCloudEntry) : [];
+      const best = Array.isArray(personalBest) ? personalBest[0] : null;
+      state.cloudPersonalBest = best
+        ? {
+            id: best.player_device_id,
+            name: "你",
+            bestFloor: Number(best.best_floor || 0),
+            bestTimeIso: best.last_played_at || "",
+            bestTimeLabel: formatCloudTime(best.last_played_at),
+            playCount: Number(best.play_count || 0),
+          }
+        : null;
+      state.cloudLoaded = true;
+      renderMenuRecords();
+    } catch (error) {
+      console.warn("Supabase records unavailable; using local records.", error);
+      state.cloudLoaded = false;
+      state.cloudEnabled = false;
+      renderMenuRecords();
+    }
+  }
+
+  async function recordCloudAttempt(record) {
+    if (!cloudConfigured()) return;
+    try {
+      await cloudRequest("game_attempts", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          player_device_id: getOrCreateDeviceId(),
+          player_name: record.name || null,
+          floor: Math.max(0, Math.min(MAX_FLOOR, Number(record.bestFloor || 0))),
+          played_at: record.bestTimeIso,
+        }),
+      });
+      await refreshCloudRecords();
+    } catch (error) {
+      console.warn("Supabase attempt insert failed.", error);
+    }
+  }
+
+  async function saveCloudLeaderboard(record, name) {
+    if (!cloudConfigured()) return;
+    try {
+      await cloudRequest("leaderboard_entries", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          player_device_id: getOrCreateDeviceId(),
+          player_name: name,
+          floor: Math.max(0, Math.min(MAX_FLOOR, Number(record.bestFloor || 0))),
+          submitted_at: record.bestTimeIso,
+        }),
+      });
+      await refreshCloudRecords();
+    } catch (error) {
+      console.warn("Supabase leaderboard insert failed.", error);
+    }
   }
 
   function setMode(mode) {
@@ -1442,6 +1589,7 @@
       bestTimeLabel: stamp.label,
       playCount: 1,
     };
+    recordCloudAttempt(state.finalRecord);
     state.overHero = {
       x: 145,
       dir: 1,
@@ -1498,6 +1646,7 @@
     }
     if (data.anonymousPlays > 0) data.anonymousPlays -= 1;
     saveData(data);
+    saveCloudLeaderboard(state.finalRecord, name);
     state.pendingRankSaved = true;
     dom.rankDialog.classList.add("hidden");
   }
@@ -1771,6 +1920,7 @@
     setupButtons();
     renderMenuRecords();
     renderFloorDigits(0);
+    refreshCloudRecords();
     await preloadRequiredImages();
     hideLoadingOverlay();
     const params = new URLSearchParams(window.location.search);
