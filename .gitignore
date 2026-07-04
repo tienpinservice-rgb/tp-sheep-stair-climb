@@ -1,0 +1,8 @@
+.agents/
+chrome-game-qa-profile/
+PIC/Original assets/
+qa-*.png
+*.psd
+*.log
+.DS_Store
+Thumbs.db

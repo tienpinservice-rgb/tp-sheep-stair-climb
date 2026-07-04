@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#86d4e6" />
+    <title>小綿羊上樓梯 │ 天品山莊出品 │ 天品集團股票代號9166</title>
+    <link rel="icon" type="image/png" href="PIC/Game assets/background/TPICON.png" />
+    <link rel="apple-touch-icon" href="PIC/Game assets/background/TPICON.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main id="gameWrap" aria-label="小綿羊上樓梯遊戲">
+      <div id="viewport">
+        <div id="stage">
+          <section id="splashScreen" class="screen active" aria-label="開場畫面">
+            <img class="full-layer" src="PIC/Game assets/background/bg_00.png" alt="" draggable="false" />
+            <img class="splash-center" src="PIC/Game assets/background/bg_06.png" alt="" draggable="false" />
+          </section>
+
+          <section id="menuScreen" class="screen" aria-label="主畫面">
+            <img class="full-layer menu-bg" src="PIC/Game assets/background/bg_01.png" alt="" draggable="false" />
+            <img class="top-ribbon" src="PIC/Game assets/background/bg_02.png" alt="" draggable="false" />
+            <div class="leaderboard-panel intro-step step-2">
+              <img src="PIC/Game assets/background/Leaderboard_01.png" alt="排行榜" draggable="false" />
+              <ol id="menuLeaderboard" class="leaderboard-list" aria-label="前五名排行榜"></ol>
+              <div id="personalBest" class="personal-best">尚無個人紀錄</div>
+            </div>
+            <div class="logo-stack intro-step step-1" aria-label="小綿羊上樓梯">
+              <img class="logo-layer logo-title float-logo-a" src="PIC/Game assets/background/LOGO_01.png" alt="" draggable="false" />
+              <img class="logo-layer logo-mascot float-logo-b" src="PIC/Game assets/background/LOGO_02.png" alt="" draggable="false" />
+              <img class="logo-layer logo-base" src="PIC/Game assets/background/LOGO_03.png" alt="" draggable="false" />
+            </div>
+            <button id="startButton" class="image-button start-button intro-step step-3" type="button" aria-label="開始遊戲">
+              <img data-normal="PIC/Game assets/Button/START-01.png" data-pressed="PIC/Game assets/Button/START-02.png" src="PIC/Game assets/Button/START-01.png" alt="START" draggable="false" />
+            </button>
+          </section>
+
+          <section id="gameScreen" class="screen" aria-label="遊戲畫面">
+            <img class="full-layer game-bg-layer" src="PIC/Game assets/background/bg_03.png" alt="" draggable="false" />
+            <div id="cloudLayer" class="world-layer"></div>
+            <img id="foregroundLayer" class="foreground-layer" src="PIC/Game assets/background/bg_04.png" alt="" draggable="false" />
+            <div id="platformLayer" class="world-layer"></div>
+            <img id="groundLayer" class="ground-layer" src="PIC/Game assets/background/bg_Bwall.png" alt="" draggable="false" />
+            <img class="full-layer wall-layer" src="PIC/Game assets/background/bg_LRUwall.png" alt="" draggable="false" />
+            <img id="hero" class="hero" src="PIC/Game assets/role/STAY_01.png" alt="角色" draggable="false" />
+            <div class="hud">
+              <img id="powerMeter" class="power-meter" src="PIC/Game assets/power/POWER_00.png" alt="集氣 0" draggable="false" />
+              <div id="floorDigits" class="floor-digits" aria-label="樓層數"></div>
+            </div>
+            <div id="pauseOverlay" class="pause-overlay" aria-hidden="true"></div>
+            <button id="pauseButton" class="image-button pause-button" type="button" aria-label="暫停遊戲">
+              <img data-normal="PIC/Game assets/Button/STOP-01.png" data-pressed="PIC/Game assets/Button/STOP-02.png" src="PIC/Game assets/Button/STOP-01.png" alt="PAUSE" draggable="false" />
+            </button>
+          </section>
+
+          <section id="gameOverScreen" class="screen" aria-label="遊戲結束">
+            <img class="full-layer" src="PIC/Game assets/background/bg_05.png" alt="" draggable="false" />
+            <img class="full-layer wall-layer" src="PIC/Game assets/background/bg_LRUwall.png" alt="" draggable="false" />
+            <img class="over-ground" src="PIC/Game assets/background/bg_Bwall.png" alt="" draggable="false" />
+            <img class="gameover-logo" src="PIC/Game assets/background/gameover logo.png" alt="GAME OVER" draggable="false" />
+            <img id="overHero" class="over-hero" src="PIC/Game assets/role/STAY_01.png" alt="休息中的角色" draggable="false" />
+            <div id="rankDialog" class="rank-dialog hidden">
+              <img src="PIC/Game assets/background/Leaderboard_02.png" alt="前五名輸入" draggable="false" />
+              <div class="rank-copy">
+                <div id="rankRecordText" class="rank-floor-digits" aria-label="本次樓層">000F</div>
+              </div>
+              <input id="playerNameInput" class="name-input" maxlength="6" autocomplete="off" inputmode="text" aria-label="輸入姓名，最多六個字" />
+              <button id="submitRankButton" class="image-button submit-rank" type="button" aria-label="送出排行榜姓名">
+                <img data-normal="PIC/Game assets/Button/GO-01.png" data-pressed="PIC/Game assets/Button/GO-02.png" src="PIC/Game assets/Button/GO-01.png" alt="OK" draggable="false" />
+              </button>
+            </div>
+            <div id="normalResultDialog" class="normal-result-dialog hidden">
+              <img src="PIC/Game assets/background/Leaderboard_03.png" alt="本次成績" draggable="false" />
+              <div class="normal-result-copy">
+                <div id="finalFloorText" class="normal-floor-digits" aria-label="本次樓層">000F</div>
+                <div id="finalBestText" class="normal-floor-digits" aria-label="最高紀錄">000F</div>
+              </div>
+            </div>
+            <div class="over-buttons">
+              <button id="restartButton" class="image-button" type="button" aria-label="重新開始">
+                <img data-normal="PIC/Game assets/Button/RESTART-01.png" data-pressed="PIC/Game assets/Button/RESTART-02.png" src="PIC/Game assets/Button/RESTART-01.png" alt="RESTART" draggable="false" />
+              </button>
+              <button id="gotoButton" class="image-button" type="button" aria-label="前往天品集團">
+                <img data-normal="PIC/Game assets/Button/GOTP-01.png" data-pressed="PIC/Game assets/Button/GOTP-02.png" src="PIC/Game assets/Button/GOTP-01.png" alt="GO TO TIENPIN GROUP" draggable="false" />
+              </button>
+              <button id="menuButton" class="image-button" type="button" aria-label="回主畫面">
+                <img data-normal="PIC/Game assets/Button/MENU-01.png" data-pressed="PIC/Game assets/Button/MENU-02.png" src="PIC/Game assets/Button/MENU-01.png" alt="MENU" draggable="false" />
+              </button>
+            </div>
+          </section>
+
+          <section id="adminScreen" class="screen admin-screen" aria-label="排行榜後台">
+            <div class="admin-card">
+              <h1>排行榜後台</h1>
+              <p id="adminSummary">目前無資料</p>
+              <div id="adminRows" class="admin-rows"></div>
+              <div class="admin-actions">
+                <button id="adminAddButton" type="button">新增資料</button>
+                <button id="adminSaveButton" type="button">儲存修改</button>
+                <button id="adminClearButton" type="button">清空資料</button>
+                <button id="adminBackButton" type="button">回主畫面</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
