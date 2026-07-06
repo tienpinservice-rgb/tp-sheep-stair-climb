@@ -59,6 +59,7 @@
   const CRYSTAL_FIRST_FLOOR = 10;
   const CRYSTAL_FLOOR_INTERVAL = 10;
   const DOUBLE_JUMP_GRANT = 3;
+  const START_TUTORIAL_DELAY_MS = 700;
 
   const $ = (id) => document.getElementById(id);
   const path = (subPath) => `${ASSET}/${subPath}`;
@@ -68,6 +69,7 @@
   const isSpaceKey = (event) => event.code === "Space" || event.key === " ";
   const isEnterKey = (event) => event.code === "Enter" || event.key === "Enter";
   const isPauseButtonEvent = (event) => event.target.closest("#pauseButton");
+  const isTutorialEvent = (event) => event.target.closest("#tutorialOverlay");
   const heroLeftThirdX = () => state.hero.x + HERO_LEFT_THIRD_X;
   const heroRightThirdX = () => state.hero.x + HERO_RIGHT_THIRD_X;
   const supportInView = (worldY, margin = 0) => worldY - state.cameraY < H - margin;
@@ -129,6 +131,9 @@
     path("background/bg_03.png"),
     path("background/bg_04.png"),
     path("background/bg_05.png"),
+    path("background/bgi_05.png"),
+    path("background/illustrate-01.png"),
+    path("background/illustrate-02.png"),
     path("background/bg_Bwall.png"),
     path("background/bg_LRUwall.png"),
     path("background/Leaderboard_01.png"),
@@ -238,6 +243,9 @@
     floorDigits: $("floorDigits"),
     pauseButton: $("pauseButton"),
     pauseOverlay: $("pauseOverlay"),
+    tutorialOverlay: $("tutorialOverlay"),
+    tutorialIllustration: $("tutorialIllustration"),
+    tutorialContinueButton: $("tutorialContinueButton"),
     finalFloorText: $("finalFloorText"),
     finalBestText: $("finalBestText"),
     overHero: $("overHero"),
@@ -314,6 +322,12 @@
     cloudPlayers: [],
     cloudPersonalBest: null,
     lastPauseButtonToggleAt: 0,
+    tutorialActive: false,
+    tutorialKind: null,
+    tutorialStartShown: false,
+    tutorialCrystalShown: false,
+    tutorialTimeoutId: 0,
+    lastTutorialButtonAt: 0,
   };
 
   const defaultData = () => ({
@@ -541,6 +555,7 @@
   }
 
   function setMode(mode) {
+    if (mode !== "playing") hideTutorial();
     state.mode = mode;
     for (const screen of [dom.splashScreen, dom.menuScreen, dom.gameScreen, dom.gameOverScreen, dom.adminScreen]) {
       screen.classList.remove("active");
@@ -636,6 +651,48 @@
     });
   }
 
+  function hideTutorial() {
+    state.tutorialActive = false;
+    state.tutorialKind = null;
+    if (!dom.tutorialOverlay) return;
+    dom.tutorialOverlay.classList.remove("show");
+    dom.tutorialOverlay.setAttribute("aria-hidden", "true");
+  }
+
+  function showTutorial(kind) {
+    if (state.mode !== "playing" || state.gameOverPending) return;
+    const isCrystalTutorial = kind === "crystal";
+    state.tutorialActive = true;
+    state.tutorialKind = kind;
+    state.inputHeld = false;
+    cancelChargeNow();
+    dom.tutorialIllustration.src = isCrystalTutorial
+      ? path("background/illustrate-02.png")
+      : path("background/illustrate-01.png");
+    dom.tutorialIllustration.alt = isCrystalTutorial ? "天品水晶球教學" : "遊戲操作教學";
+    dom.tutorialIllustration.classList.toggle("tutorial-illustration-basic", !isCrystalTutorial);
+    dom.tutorialIllustration.classList.toggle("tutorial-illustration-crystal", isCrystalTutorial);
+    dom.tutorialOverlay.classList.add("show");
+    dom.tutorialOverlay.setAttribute("aria-hidden", "false");
+  }
+
+  function showStartTutorial() {
+    if (state.mode !== "playing" || state.tutorialStartShown) return;
+    state.tutorialStartShown = true;
+    showTutorial("basic");
+  }
+
+  function closeTutorial(event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!state.tutorialActive) return;
+    const now = performance.now();
+    if (now - state.lastTutorialButtonAt < 180) return;
+    state.lastTutorialButtonAt = now;
+    hideTutorial();
+    state.lastTime = performance.now();
+  }
+
   function startGame() {
     startBgm();
     playSound("start");
@@ -662,6 +719,11 @@
     state.gameOverDelay = 0;
     state.pendingRankSaved = false;
     state.finalRecord = null;
+    window.clearTimeout(state.tutorialTimeoutId);
+    hideTutorial();
+    state.tutorialStartShown = false;
+    state.tutorialCrystalShown = false;
+    state.tutorialTimeoutId = 0;
     state.nextPlatformId = 1;
     state.generatedPlatformZones = new Set();
     state.crystalFloors = new Set();
@@ -694,6 +756,7 @@
     renderFloorDigits(0);
     updatePower(0);
     setMode("playing");
+    state.tutorialTimeoutId = window.setTimeout(showStartTutorial, START_TUTORIAL_DELAY_MS);
   }
 
   function seedPlatforms() {
@@ -1109,6 +1172,7 @@
 
   function beginCharge() {
     if (state.mode !== "playing") return;
+    if (state.tutorialActive) return;
     if (state.gameOverPending) return;
     const airCharge = !state.hero.grounded && state.doubleJumpCharges > 0;
     if (!airCharge && !ensureChargeSupport()) return;
@@ -1145,6 +1209,10 @@
     platform.crystalEl = null;
     state.doubleJumpCharges += DOUBLE_JUMP_GRANT;
     playSound("crystal");
+    if (!state.tutorialCrystalShown) {
+      state.tutorialCrystalShown = true;
+      window.setTimeout(() => showTutorial("crystal"), 120);
+    }
   }
 
   function updateCrystals(elapsed) {
@@ -1221,6 +1289,7 @@
   }
 
   function togglePause() {
+    if (state.tutorialActive) return;
     if (state.mode === "playing") {
       state.inputHeld = false;
       state.charging = false;
@@ -1245,6 +1314,7 @@
 
   function updateGame(dt, elapsed) {
     if (state.mode !== "playing") return;
+    if (state.tutorialActive) return;
 
     if (state.gameOverPending) {
       state.gameOverDelay += dt;
@@ -1609,6 +1679,8 @@
   }
 
   function endGame() {
+    window.clearTimeout(state.tutorialTimeoutId);
+    hideTutorial();
     state.inputHeld = false;
     state.charging = false;
     state.gameOverPending = false;
@@ -1762,7 +1834,11 @@
     document.addEventListener("gesturestart", (event) => event.preventDefault());
 
     const canStartChargeFromEvent = (event) =>
-      state.mode === "playing" && dom.viewport.contains(event.target) && !isPauseButtonEvent(event);
+      state.mode === "playing" &&
+      !state.tutorialActive &&
+      dom.viewport.contains(event.target) &&
+      !isPauseButtonEvent(event) &&
+      !isTutorialEvent(event);
     const immediateBeginFromEvent = (event) => {
       if (!canStartChargeFromEvent(event)) return;
       event.preventDefault();
@@ -1790,7 +1866,7 @@
 
     dom.viewport.addEventListener("pointerdown", (event) => {
       if (state.mode !== "playing") return;
-      if (event.target.closest("#pauseButton")) return;
+      if (event.target.closest("#pauseButton") || isTutorialEvent(event)) return;
       event.preventDefault();
       if (dom.viewport.setPointerCapture && event.pointerId !== undefined) {
         try {
@@ -1805,7 +1881,7 @@
 
     dom.viewport.addEventListener("pointerup", (event) => {
       if (state.mode !== "playing") return;
-      if (isPauseButtonEvent(event)) return;
+      if (isPauseButtonEvent(event) || isTutorialEvent(event)) return;
       event.preventDefault();
       state.inputHeld = false;
       releaseCharge();
@@ -1822,7 +1898,7 @@
     window.addEventListener(
       "pointerup",
       (event) => {
-        if (isPauseButtonEvent(event)) return;
+        if (isPauseButtonEvent(event) || isTutorialEvent(event)) return;
         if (state.inputHeld || state.charging) event.preventDefault();
         state.inputHeld = false;
         releaseCharge();
@@ -1838,7 +1914,7 @@
       "touchstart",
       (event) => {
         if (state.mode !== "playing") return;
-        if (isPauseButtonEvent(event)) return;
+        if (isPauseButtonEvent(event) || isTutorialEvent(event)) return;
         event.preventDefault();
         state.inputHeld = true;
         beginCharge();
@@ -1848,7 +1924,7 @@
     window.addEventListener(
       "touchend",
       (event) => {
-        if (isPauseButtonEvent(event)) return;
+        if (isPauseButtonEvent(event) || isTutorialEvent(event)) return;
         if (state.inputHeld || state.charging) event.preventDefault();
         state.inputHeld = false;
         releaseCharge();
@@ -1863,7 +1939,7 @@
       "touchend",
       (event) => {
         if (state.mode !== "playing") return;
-        if (isPauseButtonEvent(event)) return;
+        if (isPauseButtonEvent(event) || isTutorialEvent(event)) return;
         event.preventDefault();
         state.inputHeld = false;
         releaseCharge();
@@ -1874,7 +1950,7 @@
       "touchmove",
       (event) => {
         if (state.mode !== "playing") return;
-        if (isPauseButtonEvent(event)) return;
+        if (isPauseButtonEvent(event) || isTutorialEvent(event)) return;
         event.preventDefault();
       },
       { passive: false },
@@ -1897,6 +1973,9 @@
     dom.pauseButton.addEventListener("pointerup", togglePauseFromButton);
     dom.pauseButton.addEventListener("touchend", togglePauseFromButton, { passive: false });
     dom.pauseButton.addEventListener("click", togglePauseFromButton);
+    dom.tutorialContinueButton.addEventListener("pointerup", closeTutorial);
+    dom.tutorialContinueButton.addEventListener("touchend", closeTutorial, { passive: false });
+    dom.tutorialContinueButton.addEventListener("click", closeTutorial);
     dom.restartButton.addEventListener("click", () => {
       abandonRankEntry();
       window.setTimeout(startGame, 130);
@@ -1921,6 +2000,13 @@
         setMode("admin");
       }
       if (event.key === "Escape" && state.mode === "admin") setMode("menu");
+      if (state.tutorialActive) {
+        if (isEnterKey(event) || isSpaceKey(event)) {
+          event.preventDefault();
+          closeTutorial(event);
+        }
+        return;
+      }
       if (isEnterKey(event) && (state.mode === "playing" || state.mode === "paused")) {
         event.preventDefault();
         state.inputHeld = false;

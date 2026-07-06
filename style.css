@@ -554,6 +554,56 @@ img {
   display: block;
 }
 
+.tutorial-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  pointer-events: auto;
+}
+
+.tutorial-overlay.show {
+  display: block;
+}
+
+.tutorial-bg {
+  position: absolute;
+  inset: 0;
+  width: 360px;
+  height: 640px;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.tutorial-illustration {
+  position: absolute;
+  left: 50%;
+  z-index: 1;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.32));
+}
+
+.tutorial-illustration-basic {
+  top: 184px;
+  width: 287px;
+}
+
+.tutorial-illustration-crystal {
+  top: 121px;
+  width: 280px;
+}
+
+.tutorial-continue {
+  left: 146px;
+  top: 494px;
+  z-index: 2;
+  width: 68px;
+}
+
 .gameover-logo {
   position: absolute;
   z-index: 4;
