@@ -1,0 +1,223 @@
+小綿羊上樓梯 Supabase 玩家紀錄查閱與修改說明
+
+一、進入 Supabase 後台
+
+1. 開啟 Supabase 專案：
+   https://supabase.com/dashboard/project/onceypbybirumdbojonr
+
+2. 左側點選 Table Editor。
+
+3. 進入後可以看到遊戲使用的資料表與檢視表。
+
+
+二、主要資料表用途
+
+1. game_attempts
+
+用途：
+記錄每一次玩家遊戲結束的紀錄。
+
+主要欄位：
+- player_device_id：匿名玩家 ID，用來辨識同一台裝置或同一個瀏覽器。
+- player_name：玩家姓名。若該次沒有留名，可能是空白。
+- floor：該次遊戲累積樓層。
+- played_at：遊戲結束時間。
+- created_at：資料建立時間。
+
+適合用來查看：
+- 所有玩家遊玩紀錄
+- 某一位匿名玩家玩過幾次
+- 某一位匿名玩家的每次分數
+- 是否有異常分數
+
+
+2. leaderboard_entries
+
+用途：
+記錄玩家進入前五名後，有輸入姓名並送出的排行榜資料。
+
+主要欄位：
+- player_device_id：匿名玩家 ID。
+- player_name：玩家輸入的姓名。
+- floor：排行榜樓層分數。
+- submitted_at：排行榜登錄時間。
+- created_at：資料建立時間。
+
+適合用來查看：
+- 前五名候選資料
+- 玩家留名資料
+- 修改排行榜姓名
+- 刪除不適合顯示的排行榜資料
+
+
+三、輔助檢視表用途
+
+1. leaderboard_public
+
+用途：
+遊戲主畫面讀取前五名排行榜時使用。
+
+這個表主要用來查看目前排行榜排序結果。
+通常不在這裡修改資料。
+若要修改排行榜，請到 leaderboard_entries 修改。
+
+
+2. player_best_scores
+
+用途：
+依照 player_device_id 統計每位匿名玩家的最高樓層。
+
+主要欄位：
+- player_device_id：匿名玩家 ID。
+- best_floor：該匿名玩家最高樓層。
+- last_played_at：最近遊玩時間。
+- play_count：遊玩次數。
+
+這是統計結果，不建議直接修改。
+若要影響統計結果，請修改或刪除 game_attempts 內的原始紀錄。
+
+
+3. admin_player_summary
+
+用途：
+方便後台查看每位匿名玩家的摘要資料。
+
+可用來快速查看：
+- 匿名玩家 ID
+- 最高樓層
+- 最近遊玩時間
+- 遊玩次數
+- 最近或最高分相關姓名
+
+這是摘要檢視表，不建議直接修改。
+
+
+四、如何查詢某位玩家紀錄
+
+方式一：用 player_device_id 查詢
+
+1. 進入 Table Editor。
+2. 打開 game_attempts。
+3. 使用上方 Filter 或篩選功能。
+4. 欄位選 player_device_id。
+5. 條件選 equals。
+6. 輸入要查詢的 player_device_id。
+
+例如：
+player_device_id = codex_config_test
+
+
+方式二：用玩家姓名查詢
+
+1. 打開 leaderboard_entries。
+2. 使用 Filter。
+3. 欄位選 player_name。
+4. 條件選 equals 或 contains。
+5. 輸入玩家姓名。
+
+注意：
+玩家未進排行榜或未留名時，game_attempts 的 player_name 可能是空白。
+
+
+五、如何修改排行榜姓名
+
+1. 進入 Table Editor。
+2. 打開 leaderboard_entries。
+3. 找到要修改的那一列。
+4. 點 player_name 欄位。
+5. 直接修改姓名。
+6. 儲存。
+
+注意：
+遊戲目前限制姓名最多 6 個字。
+建議後台修改時也維持 6 個字以內。
+
+
+六、如何修改排行榜分數
+
+1. 進入 Table Editor。
+2. 打開 leaderboard_entries。
+3. 找到要修改的那一列。
+4. 修改 floor 欄位。
+5. 儲存。
+
+注意：
+floor 建議填 0 到 999 之間的整數。
+遊戲達到 999F 後會自動結束。
+
+
+七、如何刪除排行榜資料
+
+1. 進入 Table Editor。
+2. 打開 leaderboard_entries。
+3. 找到要刪除的資料列。
+4. 勾選該列。
+5. 按 Delete 或刪除。
+6. 確認刪除。
+
+刪除後，遊戲主畫面排行榜會依剩餘資料重新排序顯示前五名。
+
+
+八、如何刪除某次遊玩紀錄
+
+1. 進入 Table Editor。
+2. 打開 game_attempts。
+3. 找到要刪除的資料列。
+4. 勾選該列。
+5. 按 Delete 或刪除。
+6. 確認刪除。
+
+刪除 game_attempts 會影響 player_best_scores 與 admin_player_summary 的統計結果。
+
+
+九、如何查看目前前五名排行榜
+
+方式一：
+打開 leaderboard_public。
+
+方式二：
+打開 leaderboard_entries，依 floor 由大到小排序。
+
+建議：
+一般查看排行榜用 leaderboard_public。
+需要修改資料時用 leaderboard_entries。
+
+
+十、如何查看每位匿名玩家最高樓層
+
+1. 進入 Table Editor。
+2. 打開 player_best_scores。
+
+這裡會看到每個 player_device_id 的：
+- 最高樓層 best_floor
+- 最近遊玩時間 last_played_at
+- 遊玩次數 play_count
+
+
+十一、測試資料說明
+
+目前曾建立一筆測試資料：
+
+- player_device_id：codex_config_test
+- player_name：測試
+- floor：1
+
+若不需要，可在 game_attempts 中刪除此列。
+
+
+十二、注意事項
+
+1. 不要把 service_role key 放進遊戲或公開網頁。
+
+2. 遊戲只使用 publishable key / anon public key。
+
+3. 玩家端不保存 IP。
+
+4. 同一玩家判斷方式是匿名 player_device_id。
+
+5. 若玩家清除瀏覽器資料、更換瀏覽器或換手機，會產生新的匿名 player_device_id。
+
+6. Supabase 後台可以自由修改資料，但建議保留合理分數與時間，避免排行榜顯示異常。
+
+7. 若修改或刪除資料後，遊戲畫面沒有立刻更新，請重新整理遊戲頁面。
+
