@@ -67,6 +67,7 @@
   const rand = (min, max) => min + Math.random() * (max - min);
   const isSpaceKey = (event) => event.code === "Space" || event.key === " ";
   const isEnterKey = (event) => event.code === "Enter" || event.key === "Enter";
+  const isPauseButtonEvent = (event) => event.target.closest("#pauseButton");
   const heroLeftThirdX = () => state.hero.x + HERO_LEFT_THIRD_X;
   const heroRightThirdX = () => state.hero.x + HERO_RIGHT_THIRD_X;
   const supportInView = (worldY, margin = 0) => worldY - state.cameraY < H - margin;
@@ -312,6 +313,7 @@
     cloudLoaded: false,
     cloudPlayers: [],
     cloudPersonalBest: null,
+    lastPauseButtonToggleAt: 0,
   };
 
   const defaultData = () => ({
@@ -879,19 +881,19 @@
     if (floor >= 910) return 1;
     if (floor >= 900) return 0.9;
     if (floor >= 800) return 0.85;
-    if (floor >= 700) return 0.8;
-    if (floor >= 600) return 0.75;
-    if (floor >= 500) return 0.7;
-    if (floor >= 300) return 0.65;
-    if (floor >= 200) return 0.6;
-    if (floor >= 100) return 0.55;
-    if (floor >= 90) return 0.5;
-    if (floor >= 80) return 0.45;
-    if (floor >= 70) return 0.4;
-    if (floor >= 60) return 0.35;
-    if (floor >= 50) return 0.3;
-    if (floor >= 40) return 0.25;
-    if (floor >= 30) return 0.2;
+    if (floor >= 700) return 0.6;
+    if (floor >= 600) return 0.6;
+    if (floor >= 500) return 0.5;
+    if (floor >= 300) return 0.5;
+    if (floor >= 200) return 0.4;
+    if (floor >= 100) return 0.4;
+    if (floor >= 90) return 0.3;
+    if (floor >= 80) return 0.3;
+    if (floor >= 70) return 0.2;
+    if (floor >= 60) return 0.2;
+    if (floor >= 50) return 0.2;
+    if (floor >= 40) return 0.15;
+    if (floor >= 30) return 0.15;
     if (floor >= 20) return 0.15;
     if (floor >= DROP_PLATFORM_START_FLOOR) return 0.1;
     return 0;
@@ -1230,6 +1232,17 @@
     }
   }
 
+  function togglePauseFromButton(event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const now = performance.now();
+    if (now - state.lastPauseButtonToggleAt < 180) return;
+    state.lastPauseButtonToggleAt = now;
+    state.inputHeld = false;
+    releaseCharge();
+    togglePause();
+  }
+
   function updateGame(dt, elapsed) {
     if (state.mode !== "playing") return;
 
@@ -1428,8 +1441,30 @@
       return;
     }
 
+    const previousY = hero.y;
     hero.x += platform.x - platform.prevX;
+
+    if (platform.type === "drop" && platform.dropFalling && platform.y > previousY) {
+      const caughtPlatform = findPlatformCrossedByFallingSupport(platform, previousY, platform.y);
+      if (caughtPlatform) {
+        landOn(caughtPlatform);
+        return;
+      }
+    }
+
     hero.y = platform.y;
+  }
+
+  function findPlatformCrossedByFallingSupport(currentPlatform, fromY, toY) {
+    return state.platforms
+      .filter((platform) => {
+        if (platform.id === currentPlatform.id) return false;
+        if (!supportInView(platform.y)) return false;
+        if (platform.dropFalling) return false;
+        if (platform.y <= fromY + 2 || platform.y > toY + 8) return false;
+        return platformSupportsHero(platform);
+      })
+      .sort((a, b) => a.y - b.y)[0] || null;
   }
 
   function handleCollisions(prevBottom) {
@@ -1727,7 +1762,7 @@
     document.addEventListener("gesturestart", (event) => event.preventDefault());
 
     const canStartChargeFromEvent = (event) =>
-      state.mode === "playing" && dom.viewport.contains(event.target) && !event.target.closest("#pauseButton");
+      state.mode === "playing" && dom.viewport.contains(event.target) && !isPauseButtonEvent(event);
     const immediateBeginFromEvent = (event) => {
       if (!canStartChargeFromEvent(event)) return;
       event.preventDefault();
@@ -1770,6 +1805,7 @@
 
     dom.viewport.addEventListener("pointerup", (event) => {
       if (state.mode !== "playing") return;
+      if (isPauseButtonEvent(event)) return;
       event.preventDefault();
       state.inputHeld = false;
       releaseCharge();
@@ -1786,6 +1822,7 @@
     window.addEventListener(
       "pointerup",
       (event) => {
+        if (isPauseButtonEvent(event)) return;
         if (state.inputHeld || state.charging) event.preventDefault();
         state.inputHeld = false;
         releaseCharge();
@@ -1801,7 +1838,7 @@
       "touchstart",
       (event) => {
         if (state.mode !== "playing") return;
-        if (event.target.closest("#pauseButton")) return;
+        if (isPauseButtonEvent(event)) return;
         event.preventDefault();
         state.inputHeld = true;
         beginCharge();
@@ -1811,6 +1848,7 @@
     window.addEventListener(
       "touchend",
       (event) => {
+        if (isPauseButtonEvent(event)) return;
         if (state.inputHeld || state.charging) event.preventDefault();
         state.inputHeld = false;
         releaseCharge();
@@ -1825,6 +1863,7 @@
       "touchend",
       (event) => {
         if (state.mode !== "playing") return;
+        if (isPauseButtonEvent(event)) return;
         event.preventDefault();
         state.inputHeld = false;
         releaseCharge();
@@ -1835,6 +1874,7 @@
       "touchmove",
       (event) => {
         if (state.mode !== "playing") return;
+        if (isPauseButtonEvent(event)) return;
         event.preventDefault();
       },
       { passive: false },
@@ -1854,7 +1894,9 @@
     dom.startButton.addEventListener("click", () => {
       window.setTimeout(startGame, 130);
     });
-    dom.pauseButton.addEventListener("click", togglePause);
+    dom.pauseButton.addEventListener("pointerup", togglePauseFromButton);
+    dom.pauseButton.addEventListener("touchend", togglePauseFromButton, { passive: false });
+    dom.pauseButton.addEventListener("click", togglePauseFromButton);
     dom.restartButton.addEventListener("click", () => {
       abandonRankEntry();
       window.setTimeout(startGame, 130);
