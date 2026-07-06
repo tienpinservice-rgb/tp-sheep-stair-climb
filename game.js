@@ -491,7 +491,7 @@
       state.cloudEnabled = true;
       const deviceId = getOrCreateDeviceId();
       const leaderboard = await cloudRequest(
-        `leaderboard_public?select=id,player_name,floor,submitted_at&order=floor.desc,submitted_at.asc&limit=${RANK_LIMIT}`,
+        `leaderboard_entries?select=id,player_name,floor,submitted_at&order=floor.desc,submitted_at.asc&limit=${RANK_LIMIT}`,
       );
       const personalBest = await fetchCloudPersonalBest(deviceId);
       state.cloudPlayers = Array.isArray(leaderboard) ? leaderboard.map(mapCloudEntry) : [];

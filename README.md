@@ -74,7 +74,7 @@
 - 每次 Game Over 會寫入一筆 `game_attempts` 遊玩紀錄。
 - 每次 Game Over 也會更新 `players` 玩家主表的最高樓層、最高紀錄時間與遊玩次數。
 - 玩家進入前五名並輸入姓名後，會寫入一筆 `leaderboard_entries` 留名歷史，並同步更新 `players.player_name`。
-- 主畫面排行榜會讀取 Supabase `leaderboard_public`，目前資料來源為 `players` 中有姓名的玩家最高分。
+- 主畫面排行榜會讀取 Supabase `leaderboard_entries` / `leaderboard_public` 的前五筆留名紀錄，不用 `players` 去重，避免同一玩家多次留名時前五名少於五筆。
 - 個人最高紀錄會依同一瀏覽器的匿名 `player_device_id` 從 `players` / `player_best_scores` 查詢。
 - 未設定 Supabase 或連線失敗時，會自動回到本機 `localStorage`。
 

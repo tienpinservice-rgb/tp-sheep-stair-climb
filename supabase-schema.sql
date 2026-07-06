@@ -106,13 +106,12 @@ create or replace view public.leaderboard_public
 with (security_invoker = true)
 as
 select
-  player_device_id as id,
+  id,
   player_name,
-  best_floor as floor,
-  best_played_at as submitted_at
-from public.players
-where player_name is not null and char_length(player_name) > 0
-order by best_floor desc, best_played_at asc;
+  floor,
+  submitted_at
+from public.leaderboard_entries
+order by floor desc, submitted_at asc;
 
 create or replace view public.player_best_scores
 with (security_invoker = true)

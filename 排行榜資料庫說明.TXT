@@ -75,8 +75,9 @@
 - 稽核或刪除不適合保留的送出紀錄
 
 注意：
-目前首頁排行榜主要由 players 的玩家最高分產生。
-若要直接影響首頁排行榜，請優先修改 players。
+目前首頁排行榜主要由 leaderboard_entries 的留名紀錄產生。
+若要直接影響首頁前五名排行榜，請優先修改 leaderboard_entries。
+players 則用來管理每位玩家的最高紀錄與遊玩次數。
 
 
 三、輔助檢視表用途
@@ -86,9 +87,9 @@
 用途：
 遊戲主畫面讀取前五名排行榜時使用。
 
-這個 view 由 players 中「有姓名的玩家最高分」產生。
+這個 view 由 leaderboard_entries 中所有已送出的留名紀錄產生。
 通常不在這裡修改資料。
-若要修改排行榜顯示，請到 players 修改 player_name 或 best_floor。
+若要修改排行榜顯示，請到 leaderboard_entries 修改 player_name 或 floor。
 
 
 2. player_best_scores
@@ -162,7 +163,8 @@ player_device_id = codex_config_test
 注意：
 遊戲目前限制姓名最多 6 個字。
 建議後台修改時也維持 6 個字以內。
-首頁排行榜會讀取 players 內有姓名的玩家資料。
+players 會保存玩家目前姓名與最高紀錄。
+若要修改首頁前五名排行榜的某一筆留名紀錄，請改 leaderboard_entries。
 
 
 六、如何修改排行榜分數
@@ -212,11 +214,11 @@ game_attempts 是原始歷史紀錄。
 打開 leaderboard_public。
 
 方式二：
-打開 players，依 best_floor 由大到小排序，並只看 player_name 有資料的玩家。
+打開 leaderboard_entries，依 floor 由大到小排序。
 
 建議：
 一般查看排行榜用 leaderboard_public。
-需要修改資料時用 players。
+需要修改資料時用 leaderboard_entries。
 
 
 十、如何查看每位匿名玩家最高樓層
@@ -265,7 +267,7 @@ game_attempts 是原始歷史紀錄。
 新版 SQL 會：
 - 建立 players 玩家主表。
 - 嘗試從既有 game_attempts 與 leaderboard_entries 回填玩家姓名、最高樓層、遊玩次數。
-- 將 leaderboard_public 改為由 players 產生。
+- 將 leaderboard_public 改為由 leaderboard_entries 產生，確保前五名依所有留名紀錄排序。
 - 保留 game_attempts 作為每局歷史紀錄。
 - 保留 leaderboard_entries 作為玩家送出留名的歷史紀錄。
 
