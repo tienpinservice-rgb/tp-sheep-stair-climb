@@ -72,9 +72,10 @@
 
 - 玩家第一次開啟遊戲時產生匿名 `player_device_id`，保存在瀏覽器 `localStorage`。
 - 每次 Game Over 會寫入一筆 `game_attempts` 遊玩紀錄。
-- 玩家進入前五名並輸入姓名後，會寫入一筆 `leaderboard_entries` 排行榜紀錄。
-- 主畫面排行榜會讀取 Supabase 前五名。
-- 個人最高紀錄會依同一瀏覽器的匿名 `player_device_id` 查詢。
+- 每次 Game Over 也會更新 `players` 玩家主表的最高樓層、最高紀錄時間與遊玩次數。
+- 玩家進入前五名並輸入姓名後，會寫入一筆 `leaderboard_entries` 留名歷史，並同步更新 `players.player_name`。
+- 主畫面排行榜會讀取 Supabase `leaderboard_public`，目前資料來源為 `players` 中有姓名的玩家最高分。
+- 個人最高紀錄會依同一瀏覽器的匿名 `player_device_id` 從 `players` / `player_best_scores` 查詢。
 - 未設定 Supabase 或連線失敗時，會自動回到本機 `localStorage`。
 
 主畫面顯示前五名。遊戲結束後若成績進入前五名，會出現輸入框，可輸入最多六個中文字並送出紀錄。
@@ -102,7 +103,7 @@ window.SHEEP_SUPABASE = {
 };
 ```
 
-玩家端不保存 IP。資料以匿名 `player_device_id` 辨識同一瀏覽器玩家的最高樓層。你可直接在 Supabase Table Editor 修改、刪除、補登資料。
+玩家端不保存 IP。資料以匿名 `player_device_id` 辨識同一瀏覽器玩家的最高樓層。你可直接在 Supabase Table Editor 修改、刪除、補登資料；一般查看與修改玩家姓名、最高分、遊玩次數時，請優先使用 `players` 表。
 
 ## 後台管理
 

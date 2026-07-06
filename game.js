@@ -407,11 +407,11 @@
 
   function mapCloudEntry(entry) {
     return {
-      id: entry.id,
-      name: entry.player_name || "未命名",
+      id: entry.id || entry.player_device_id,
+      name: entry.player_name || entry.latest_player_name || "未命名",
       bestFloor: Number(entry.floor || entry.best_floor || 0),
-      bestTimeIso: entry.submitted_at || entry.last_played_at || "",
-      bestTimeLabel: formatCloudTime(entry.submitted_at || entry.last_played_at),
+      bestTimeIso: entry.submitted_at || entry.best_played_at || entry.last_played_at || "",
+      bestTimeLabel: formatCloudTime(entry.submitted_at || entry.best_played_at || entry.last_played_at),
       playCount: Number(entry.play_count || 1),
     };
   }
@@ -490,19 +490,19 @@
     try {
       state.cloudEnabled = true;
       const deviceId = getOrCreateDeviceId();
-      const [leaderboard, personalBest] = await Promise.all([
-        cloudRequest(`leaderboard_public?select=id,player_name,floor,submitted_at&order=floor.desc,submitted_at.asc&limit=${RANK_LIMIT}`),
-        cloudRequest(`player_best_scores?select=player_device_id,best_floor,last_played_at,play_count&player_device_id=eq.${encodeURIComponent(deviceId)}&limit=1`),
-      ]);
+      const leaderboard = await cloudRequest(
+        `leaderboard_public?select=id,player_name,floor,submitted_at&order=floor.desc,submitted_at.asc&limit=${RANK_LIMIT}`,
+      );
+      const personalBest = await fetchCloudPersonalBest(deviceId);
       state.cloudPlayers = Array.isArray(leaderboard) ? leaderboard.map(mapCloudEntry) : [];
-      const best = Array.isArray(personalBest) ? personalBest[0] : null;
+      const best = personalBest;
       state.cloudPersonalBest = best
         ? {
             id: best.player_device_id,
-            name: "你",
+            name: best.player_name || "你",
             bestFloor: Number(best.best_floor || 0),
-            bestTimeIso: best.last_played_at || "",
-            bestTimeLabel: formatCloudTime(best.last_played_at),
+            bestTimeIso: best.best_played_at || best.last_played_at || "",
+            bestTimeLabel: formatCloudTime(best.best_played_at || best.last_played_at),
             playCount: Number(best.play_count || 0),
           }
         : null;
@@ -513,6 +513,69 @@
       state.cloudLoaded = false;
       state.cloudEnabled = false;
       renderMenuRecords();
+    }
+  }
+
+  async function fetchCloudPersonalBest(deviceId) {
+    const encodedDeviceId = encodeURIComponent(deviceId);
+    try {
+      const players = await cloudRequest(
+        `players?select=player_device_id,player_name,best_floor,best_played_at,last_played_at,play_count&player_device_id=eq.${encodedDeviceId}&limit=1`,
+      );
+      if (Array.isArray(players) && players[0]) return players[0];
+    } catch (error) {
+      console.warn("Supabase players table unavailable; falling back to player_best_scores.", error);
+    }
+
+    try {
+      const bestScores = await cloudRequest(
+        `player_best_scores?select=player_device_id,player_name,best_floor,last_played_at,play_count&player_device_id=eq.${encodedDeviceId}&limit=1`,
+      );
+      return Array.isArray(bestScores) ? bestScores[0] || null : null;
+    } catch {
+      const bestScores = await cloudRequest(
+        `player_best_scores?select=player_device_id,best_floor,last_played_at,play_count&player_device_id=eq.${encodedDeviceId}&limit=1`,
+      );
+      return Array.isArray(bestScores) ? bestScores[0] || null : null;
+    }
+  }
+
+  async function fetchCloudPlayer(deviceId) {
+    const players = await cloudRequest(
+      `players?select=player_device_id,player_name,best_floor,best_played_at,first_played_at,last_played_at,play_count&player_device_id=eq.${encodeURIComponent(deviceId)}&limit=1`,
+    );
+    return Array.isArray(players) ? players[0] || null : null;
+  }
+
+  async function upsertCloudPlayer(record, options = {}) {
+    if (!cloudConfigured()) return;
+    const deviceId = getOrCreateDeviceId();
+    const floor = Math.max(0, Math.min(MAX_FLOOR, Number(record.bestFloor || 0)));
+    const recordTime = record.bestTimeIso || new Date().toISOString();
+    const name = options.name ? options.name.slice(0, 6) : null;
+    const countPlay = options.countPlay !== false;
+    try {
+      const current = await fetchCloudPlayer(deviceId);
+      const currentBestFloor = Number(current?.best_floor || 0);
+      const nextIsBest = floor >= currentBestFloor;
+      const nextPlayCount = Math.max(0, Number(current?.play_count || 0) + (countPlay ? 1 : 0));
+      const payload = {
+        player_device_id: deviceId,
+        player_name: name || current?.player_name || null,
+        best_floor: nextIsBest ? floor : currentBestFloor,
+        best_played_at: nextIsBest ? recordTime : current?.best_played_at || current?.last_played_at || recordTime,
+        play_count: nextPlayCount,
+        first_played_at: current?.first_played_at || recordTime,
+        last_played_at: countPlay ? recordTime : current?.last_played_at || recordTime,
+        updated_at: new Date().toISOString(),
+      };
+      await cloudRequest("players?on_conflict=player_device_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.warn("Supabase player summary update failed.", error);
     }
   }
 
@@ -529,6 +592,7 @@
           played_at: record.bestTimeIso,
         }),
       });
+      await upsertCloudPlayer(record, { countPlay: true });
       await refreshCloudRecords();
     } catch (error) {
       console.warn("Supabase attempt insert failed.", error);
@@ -548,6 +612,7 @@
           submitted_at: record.bestTimeIso,
         }),
       });
+      await upsertCloudPlayer(record, { name, countPlay: false });
       await refreshCloudRecords();
     } catch (error) {
       console.warn("Supabase leaderboard insert failed.", error);
