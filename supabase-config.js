@@ -1,4 +1,4 @@
 window.SHEEP_SUPABASE = {
-  url: "",
-  anonKey: "",
+  url: "https://onceypbybirumdbojonr.supabase.co",
+  anonKey: "sb_publishable_PiDFmWbXhdNBzJLeWRFphw_Tc2A45_D",
 };
