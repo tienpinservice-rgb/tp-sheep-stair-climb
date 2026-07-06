@@ -1,0 +1,298 @@
+小綿羊上樓梯 Supabase 玩家紀錄查閱與修改說明
+
+一、進入 Supabase 後台
+
+1. 開啟 Supabase 專案：
+   https://supabase.com/dashboard/project/onceypbybirumdbojonr
+
+2. 左側點選 Table Editor。
+
+3. 進入後可以看到遊戲使用的資料表與檢視表。
+
+
+二、主要資料表用途
+
+1. players
+
+用途：
+玩家主表。這是後台查看與修改玩家資料最建議先看的表。
+
+主要欄位：
+- player_device_id：匿名玩家 ID，用來辨識同一台裝置或同一個瀏覽器。
+- player_name：玩家姓名。玩家進入排行榜並送出姓名後，會同步更新到這裡。
+- best_floor：該玩家最高樓層。
+- best_played_at：最高樓層發生時間。
+- play_count：遊玩次數。
+- first_played_at：第一次遊玩時間。
+- last_played_at：最近一次遊玩時間。
+- updated_at：玩家主表最後更新時間。
+
+適合用來查看：
+- 所有玩家名字
+- 每位玩家最高紀錄
+- 每位玩家玩過幾次
+- 修改玩家姓名
+- 修改玩家最高樓層
+- 查看目前有多少個匿名玩家玩過遊戲
+
+
+2. game_attempts
+
+用途：
+記錄每一次玩家遊戲結束的原始紀錄。
+
+主要欄位：
+- player_device_id：匿名玩家 ID。
+- player_name：玩家姓名。若該次沒有留名，通常會是空白。
+- floor：該次遊戲累積樓層。
+- played_at：遊戲結束時間。
+- created_at：資料建立時間。
+
+適合用來查看：
+- 所有玩家遊玩歷史
+- 某一位匿名玩家每一次分數
+- 是否有異常分數
+
+注意：
+若只是想查看玩家姓名、最高紀錄與遊玩次數，請優先打開 players。
+
+
+3. leaderboard_entries
+
+用途：
+記錄玩家進入前五名後，有輸入姓名並送出的排行榜留名歷史。
+
+主要欄位：
+- player_device_id：匿名玩家 ID。
+- player_name：玩家輸入的姓名。
+- floor：送出時的排行榜樓層分數。
+- submitted_at：排行榜登錄時間。
+- created_at：資料建立時間。
+
+適合用來查看：
+- 玩家曾經送出的留名資料
+- 排行榜送出紀錄
+- 稽核或刪除不適合保留的送出紀錄
+
+注意：
+目前首頁排行榜主要由 players 的玩家最高分產生。
+若要直接影響首頁排行榜，請優先修改 players。
+
+
+三、輔助檢視表用途
+
+1. leaderboard_public
+
+用途：
+遊戲主畫面讀取前五名排行榜時使用。
+
+這個 view 由 players 中「有姓名的玩家最高分」產生。
+通常不在這裡修改資料。
+若要修改排行榜顯示，請到 players 修改 player_name 或 best_floor。
+
+
+2. player_best_scores
+
+用途：
+依照 player_device_id 查看每位匿名玩家的最高樓層。
+
+主要欄位：
+- player_device_id：匿名玩家 ID。
+- player_name：玩家姓名。
+- best_floor：該匿名玩家最高樓層。
+- last_played_at：最高或最近紀錄時間。
+- play_count：遊玩次數。
+
+這是由 players 產生的查詢結果，不建議直接修改。
+若要影響目前最高紀錄，請修改 players。
+
+
+3. admin_player_summary
+
+用途：
+方便後台查看每位匿名玩家的摘要資料。
+
+可用來快速查看：
+- 匿名玩家 ID
+- 玩家姓名
+- 最高樓層
+- 最近遊玩時間
+- 遊玩次數
+- 首次遊玩時間
+
+這是摘要檢視表，不建議直接修改。
+
+
+四、如何查詢某位玩家紀錄
+
+方式一：用 player_device_id 查詢
+
+1. 進入 Table Editor。
+2. 打開 players。
+3. 使用上方 Filter 或篩選功能。
+4. 欄位選 player_device_id。
+5. 條件選 equals。
+6. 輸入要查詢的 player_device_id。
+
+例如：
+player_device_id = codex_config_test
+
+
+方式二：用玩家姓名查詢
+
+1. 打開 players。
+2. 使用 Filter。
+3. 欄位選 player_name。
+4. 條件選 equals 或 contains。
+5. 輸入玩家姓名。
+
+注意：
+玩家未進排行榜或未留名時，players 的 player_name 可能是空白。
+
+
+五、如何修改玩家姓名或排行榜姓名
+
+1. 進入 Table Editor。
+2. 打開 players。
+3. 找到要修改的那一列。
+4. 點 player_name 欄位。
+5. 直接修改姓名。
+6. 儲存。
+
+注意：
+遊戲目前限制姓名最多 6 個字。
+建議後台修改時也維持 6 個字以內。
+首頁排行榜會讀取 players 內有姓名的玩家資料。
+
+
+六、如何修改排行榜分數
+
+1. 進入 Table Editor。
+2. 打開 players。
+3. 找到要修改的那一列。
+4. 修改 best_floor 欄位。
+5. 必要時同步修改 best_played_at。
+6. 儲存。
+
+注意：
+best_floor 建議填 0 到 999 之間的整數。
+遊戲達到 999F 後會自動結束。
+
+
+七、如何讓玩家不顯示在排行榜
+
+方式一：
+清空 players 的 player_name。
+
+方式二：
+刪除 players 中該玩家整列。
+
+建議：
+若只是暫時不想顯示在前五名，優先清空 player_name，不一定要刪除整列。
+
+
+八、如何刪除某次遊玩紀錄
+
+1. 進入 Table Editor。
+2. 打開 game_attempts。
+3. 找到要刪除的資料列。
+4. 勾選該列。
+5. 按 Delete 或刪除。
+6. 確認刪除。
+
+注意：
+game_attempts 是原始歷史紀錄。
+若已啟用 players 主表，刪除 game_attempts 不一定會自動改變 players 目前保存的最高紀錄。
+需要時請同步修改 players。
+
+
+九、如何查看目前前五名排行榜
+
+方式一：
+打開 leaderboard_public。
+
+方式二：
+打開 players，依 best_floor 由大到小排序，並只看 player_name 有資料的玩家。
+
+建議：
+一般查看排行榜用 leaderboard_public。
+需要修改資料時用 players。
+
+
+十、如何查看每位匿名玩家最高樓層
+
+1. 進入 Table Editor。
+2. 打開 players 或 player_best_scores。
+
+這裡會看到每個 player_device_id 的：
+- 玩家姓名 player_name
+- 最高樓層 best_floor
+- 最高紀錄時間 best_played_at
+- 最近遊玩時間 last_played_at
+- 遊玩次數 play_count
+
+
+十一、套用新版資料庫結構
+
+若 Supabase 內還沒有 players 表，或目前排行榜與玩家資訊沒有照規劃呈現：
+
+1. 開啟 Supabase 專案。
+2. 左側點 SQL Editor。
+3. 不需要刪除原本的 SQL 文件或 Query。
+   原本的 SQL 文件只是草稿或執行紀錄，不會影響資料庫目前運作。
+4. 點 New query 新增一份新的 SQL 文件。
+5. 打開專案內 supabase-schema.sql。
+6. 全部複製 supabase-schema.sql 的完整內容。
+7. 貼到 Supabase 的 SQL Editor。
+8. 按 Run 執行。
+9. 執行成功後，回到 Table Editor。
+10. 左側資料表清單應會出現 players。
+
+執行後建議查看順序：
+
+1. players
+   用來看玩家姓名、最高樓層、最高紀錄時間、遊玩次數。
+
+2. leaderboard_entries
+   用來看歷來有送出排名姓名的紀錄。
+
+3. game_attempts
+   用來看每一次遊玩結束的原始紀錄。這張表的 player_name 常常是空白，屬於正常現象。
+
+4. leaderboard_public
+   用來看遊戲首頁實際讀取的前五名排行榜結果。
+
+新版 SQL 會：
+- 建立 players 玩家主表。
+- 嘗試從既有 game_attempts 與 leaderboard_entries 回填玩家姓名、最高樓層、遊玩次數。
+- 將 leaderboard_public 改為由 players 產生。
+- 保留 game_attempts 作為每局歷史紀錄。
+- 保留 leaderboard_entries 作為玩家送出留名的歷史紀錄。
+
+
+十二、測試資料說明
+
+曾建立一筆測試資料：
+
+- player_device_id：codex_config_test
+- player_name：測試
+- floor：1
+
+若不需要，可在 game_attempts 與 players 中刪除相關資料。
+
+
+十三、注意事項
+
+1. 不要把 service_role key 放進遊戲或公開網頁。
+
+2. 遊戲只使用 publishable key / anon public key。
+
+3. 玩家端不保存 IP。
+
+4. 同一玩家判斷方式是匿名 player_device_id。
+
+5. 若玩家清除瀏覽器資料、更換瀏覽器或換手機，會產生新的匿名 player_device_id。
+
+6. Supabase 後台可以自由修改資料，但建議保留合理分數與時間，避免排行榜顯示異常。
+
+7. 若修改或刪除資料後，遊戲畫面沒有立刻更新，請重新整理遊戲頁面。
