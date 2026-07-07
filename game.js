@@ -836,25 +836,41 @@
 
   function platformTierForFloor(floor) {
     const f = Math.max(1, Math.min(999, Math.floor(floor)));
-    if (f <= 15) return { movingCount: 1, speedMultiplier: 1, amplitudeMultiplier: 1 };
-    if (f <= 30) return { movingCount: 2, speedMultiplier: 1.25, amplitudeMultiplier: 1 };
-    if (f <= 45) return { movingCount: 3, speedMultiplier: 1.25, amplitudeMultiplier: 1 };
-    if (f <= 60) return { movingCount: 4, speedMultiplier: 1.25, amplitudeMultiplier: 1 };
-    if (f <= 75) return { movingCount: 2, speedMultiplier: 1.5, amplitudeMultiplier: 1 };
-    if (f <= 100) return { movingCount: 3, speedMultiplier: 1.5, amplitudeMultiplier: 1 };
-    if (f <= 115) return { movingCount: 4, speedMultiplier: 1.5, amplitudeMultiplier: 1 };
-    if (f <= 215) return { movingCount: 2, speedMultiplier: 1.75, amplitudeMultiplier: 2 };
-    if (f <= 260) return { movingCount: 3, speedMultiplier: 1.75, amplitudeMultiplier: 2 };
-    if (f <= 275) return { movingCount: 4, speedMultiplier: 1.75, amplitudeMultiplier: 2 };
-    if (f <= 300) return { movingCount: 2, speedMultiplier: 2, amplitudeMultiplier: 2 };
-    if (f <= 315) return { movingCount: 3, speedMultiplier: 2, amplitudeMultiplier: 2 };
-    if (f <= 330) return { movingCount: 4, speedMultiplier: 2, amplitudeMultiplier: 2 };
-    if (f <= 345) return { movingCount: 2, speedMultiplier: 2.25, amplitudeMultiplier: 2 };
-    if (f <= 375) return { movingCount: 3, speedMultiplier: 2.25, amplitudeMultiplier: 2 };
-    if (f <= 400) return { movingCount: 4, speedMultiplier: 2.25, amplitudeMultiplier: 2 };
-    if (f >= 900) return { movingCount: 1, speedMultiplier: speedMultiplierForExtendedMovingTier(990), amplitudeMultiplier: 2 };
+    if (f <= 15) return platformTier(1, 1, f);
+    if (f <= 30) return platformTier(2, 1.25, f);
+    if (f <= 45) return platformTier(3, 1.25, f);
+    if (f <= 60) return platformTier(4, 1.25, f);
+    if (f <= 75) return platformTier(2, 1.5, f);
+    if (f <= 100) return platformTier(3, 1.5, f);
+    if (f <= 115) return platformTier(4, 1.5, f);
+    if (f <= 215) return platformTier(2, 1.75, f);
+    if (f <= 260) return platformTier(3, 1.75, f);
+    if (f <= 275) return platformTier(4, 1.75, f);
+    if (f <= 300) return platformTier(2, 2, f);
+    if (f <= 315) return platformTier(3, 2, f);
+    if (f <= 330) return platformTier(4, 2, f);
+    if (f <= 345) return platformTier(2, 2.25, f);
+    if (f <= 375) return platformTier(3, 2.25, f);
+    if (f <= 400) return platformTier(4, 2.25, f);
+    if (f >= 900) return platformTier(1, speedMultiplierForExtendedMovingTier(990), f);
     const extendedTier = extendedMovingTierForFloor(f);
-    return { ...extendedTier, amplitudeMultiplier: 2 };
+    return platformTier(extendedTier.movingCount, extendedTier.speedMultiplier, f);
+  }
+
+  function platformTier(movingCount, speedMultiplier, floor) {
+    return {
+      movingCount,
+      speedMultiplier,
+      amplitudeMultiplier: amplitudeMultiplierForFloor(floor),
+    };
+  }
+
+  function amplitudeMultiplierForFloor(floor) {
+    if (floor <= 115) return 1;
+    if (floor <= 160) return 1.5;
+    if (floor <= 260) return 2;
+    if (floor <= 300) return 1.5;
+    return 2;
   }
 
   function extendedMovingTierForFloor(floor) {
