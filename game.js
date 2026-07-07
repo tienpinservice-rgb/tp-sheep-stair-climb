@@ -48,7 +48,7 @@
   const DROP_PLATFORM_FALL_GRAVITY = 360;
   const MOVING_AXIS_PATTERN = ["x", "x", "y", "x", "x", "y", "x", "x", "y", "x"];
   const VERTICAL_PLATFORM_AMPLITUDE_BOOST = 2;
-  const MOVING_PLATFORM_SPEED_BOOST = 1.5;
+  const MOVING_PLATFORM_SPEED_BOOST = 1;
   const PLATFORM_LANDING_TOP_TOLERANCE = 8;
   const VERTICAL_PLATFORM_LANDING_GRACE = 4;
   const MIN_CLOUDS = 10;
@@ -837,23 +837,38 @@
   function platformTierForFloor(floor) {
     const f = Math.max(1, Math.min(999, Math.floor(floor)));
     if (f <= 15) return { movingCount: 1, speedMultiplier: 1, amplitudeMultiplier: 1 };
-    if (f <= 30) return { movingCount: 2, speedMultiplier: 1, amplitudeMultiplier: 1 };
-    if (f <= 45) return { movingCount: 3, speedMultiplier: 1, amplitudeMultiplier: 1 };
-    if (f <= 60) return { movingCount: 4, speedMultiplier: 1, amplitudeMultiplier: 1 };
+    if (f <= 30) return { movingCount: 2, speedMultiplier: 1.25, amplitudeMultiplier: 1 };
+    if (f <= 45) return { movingCount: 3, speedMultiplier: 1.25, amplitudeMultiplier: 1 };
+    if (f <= 60) return { movingCount: 4, speedMultiplier: 1.25, amplitudeMultiplier: 1 };
     if (f <= 75) return { movingCount: 2, speedMultiplier: 1.5, amplitudeMultiplier: 1 };
     if (f <= 100) return { movingCount: 3, speedMultiplier: 1.5, amplitudeMultiplier: 1 };
     if (f <= 115) return { movingCount: 4, speedMultiplier: 1.5, amplitudeMultiplier: 1 };
-    if (f <= 130) return { movingCount: 2, speedMultiplier: 2, amplitudeMultiplier: 1.5 };
-    if (f <= 145) return { movingCount: 3, speedMultiplier: 2, amplitudeMultiplier: 1.5 };
-    if (f <= 160) return { movingCount: 4, speedMultiplier: 2, amplitudeMultiplier: 1.5 };
-    if (f <= 175) return { movingCount: 2, speedMultiplier: 2, amplitudeMultiplier: 2 };
-    if (f <= 200) return { movingCount: 3, speedMultiplier: 2, amplitudeMultiplier: 2 };
-    if (f <= 215) return { movingCount: 4, speedMultiplier: 2, amplitudeMultiplier: 2 };
-    if (f <= 230) return { movingCount: 2, speedMultiplier: 2.5, amplitudeMultiplier: 2 };
-    if (f <= 245) return { movingCount: 3, speedMultiplier: 2.5, amplitudeMultiplier: 2 };
-    if (f <= 260) return { movingCount: 4, speedMultiplier: 2.5, amplitudeMultiplier: 2 };
-    if (f <= 300) return { movingCount: Infinity, speedMultiplier: 2.5, amplitudeMultiplier: 1.5 };
-    return { movingCount: Infinity, speedMultiplier: 2.5, amplitudeMultiplier: 2 };
+    if (f <= 215) return { movingCount: 2, speedMultiplier: 1.75, amplitudeMultiplier: 2 };
+    if (f <= 260) return { movingCount: 3, speedMultiplier: 1.75, amplitudeMultiplier: 2 };
+    if (f <= 275) return { movingCount: 4, speedMultiplier: 1.75, amplitudeMultiplier: 2 };
+    if (f <= 300) return { movingCount: 2, speedMultiplier: 2, amplitudeMultiplier: 2 };
+    if (f <= 315) return { movingCount: 3, speedMultiplier: 2, amplitudeMultiplier: 2 };
+    if (f <= 330) return { movingCount: 4, speedMultiplier: 2, amplitudeMultiplier: 2 };
+    if (f <= 345) return { movingCount: 2, speedMultiplier: 2.25, amplitudeMultiplier: 2 };
+    if (f <= 375) return { movingCount: 3, speedMultiplier: 2.25, amplitudeMultiplier: 2 };
+    if (f <= 400) return { movingCount: 4, speedMultiplier: 2.25, amplitudeMultiplier: 2 };
+    if (f >= 900) return { movingCount: 1, speedMultiplier: speedMultiplierForExtendedMovingTier(990), amplitudeMultiplier: 2 };
+    const extendedTier = extendedMovingTierForFloor(f);
+    return { ...extendedTier, amplitudeMultiplier: 2 };
+  }
+
+  function extendedMovingTierForFloor(floor) {
+    const cycleIndex = Math.floor((floor - 401) / 45);
+    const position = (floor - 401) % 45;
+    const movingCount = position < 15 ? 2 : position < 30 ? 3 : 4;
+    return {
+      movingCount,
+      speedMultiplier: 2.5 + cycleIndex * 0.25,
+    };
+  }
+
+  function speedMultiplierForExtendedMovingTier(floor) {
+    return extendedMovingTierForFloor(floor).speedMultiplier;
   }
 
   function shuffle(values) {
