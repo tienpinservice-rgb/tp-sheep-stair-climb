@@ -122,6 +122,8 @@
     "MENU-02.png",
     "GO-01.png",
     "GO-02.png",
+    "GO-03.png",
+    "GO-04.png",
   ].map((fileName) => path(`Button/${fileName}`));
   const preloadImages = [
     path("background/bg_00.png"),
