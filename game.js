@@ -140,6 +140,7 @@
     path("background/bg_LRUwall.png"),
     path("background/Leaderboard_01.png"),
     path("background/Leaderboard_02.png"),
+    path("background/Leaderboard_02 -02.png"),
     path("background/Leaderboard_03.png"),
     path("background/LOGO_01.png"),
     path("background/LOGO_02.png"),
