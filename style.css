@@ -690,7 +690,7 @@ img {
   border: 0;
   outline: 0;
   color: #7a3c05;
-  background: rgba(255, 237, 147, 0.38);
+  background-color: rgba(255, 237, 147, 0.38);
   font-size: 19px;
   font-weight: 900;
   text-align: center;
@@ -698,6 +698,17 @@ img {
   user-select: text;
   touch-action: manipulation;
   border-radius: 8px;
+  animation: nameInputFlash 960ms ease-in-out infinite alternate;
+}
+
+@keyframes nameInputFlash {
+  from {
+    background-color: rgba(255, 237, 147, 0.38);
+  }
+
+  to {
+    background-color: rgba(255, 249, 188, 0.62);
+  }
 }
 
 .submit-rank {
