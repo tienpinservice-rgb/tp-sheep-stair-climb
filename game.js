@@ -49,6 +49,8 @@
   const MOVING_AXIS_PATTERN = ["x", "x", "y", "x", "x", "y", "x", "x", "y", "x"];
   const VERTICAL_PLATFORM_AMPLITUDE_BOOST = 2;
   const MOVING_PLATFORM_SPEED_BOOST = 1.5;
+  const PLATFORM_LANDING_TOP_TOLERANCE = 8;
+  const VERTICAL_PLATFORM_LANDING_GRACE = 4;
   const MIN_CLOUDS = 10;
   const MAX_CLOUDS = 16;
   const CRYSTAL_W = 28;
@@ -1611,9 +1613,8 @@
     if (!hero.grounded && falling) {
       for (const platform of state.platforms) {
         if (!supportInView(platform.y)) continue;
-        const platformTop = platform.y;
         const overlapsX = platformSupportsHero(platform);
-        const crossesTop = prevBottom <= platformTop + 8 && hero.y >= platformTop;
+        const crossesTop = platformCatchesFallingHero(platform, prevBottom);
         if (overlapsX && crossesTop) {
           landOn(platform);
           return;
@@ -1632,6 +1633,14 @@
       resumeChargeIfInputHeld();
       playSound("landing");
     }
+  }
+
+  function platformCatchesFallingHero(platform, prevBottom) {
+    const prevPlatformTop = Number.isFinite(platform.prevY) ? platform.prevY : platform.y;
+    const previousRelativeY = prevBottom - prevPlatformTop;
+    const currentRelativeY = state.hero.y - platform.y;
+    const currentGrace = platform.moving && platform.axis === "y" ? VERTICAL_PLATFORM_LANDING_GRACE : 0;
+    return previousRelativeY <= PLATFORM_LANDING_TOP_TOLERANCE && currentRelativeY >= -currentGrace;
   }
 
   function landOn(platform) {
