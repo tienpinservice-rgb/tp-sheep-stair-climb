@@ -1614,27 +1614,57 @@
     const previousY = hero.y;
     hero.x += platform.x - platform.prevX;
 
-    if (platform.type === "drop" && platform.dropFalling && platform.y > previousY) {
-      const caughtPlatform = findPlatformCrossedByFallingSupport(platform, previousY, platform.y);
-      if (caughtPlatform) {
-        landOn(caughtPlatform);
-        return;
-      }
+    const crossedPlatform = findPlatformCrossedByMovingSupport(platform, previousY, platform.y);
+    if (crossedPlatform) {
+      switchSupportToPlatform(crossedPlatform);
+      return;
+    }
+
+    const liftingPlatform = findUpwardPlatformThroughSupport(platform, previousY);
+    if (liftingPlatform) {
+      switchSupportToPlatform(liftingPlatform);
+      return;
     }
 
     hero.y = platform.y;
   }
 
-  function findPlatformCrossedByFallingSupport(currentPlatform, fromY, toY) {
+  function findPlatformCrossedByMovingSupport(currentPlatform, fromY, toY) {
+    if (Math.abs(toY - fromY) < 0.5) return null;
+    const movingDown = toY > fromY;
+    const crossed = state.platforms.filter((platform) => {
+      if (platform.id === currentPlatform.id) return false;
+      if (!canTransferSupportToPlatform(platform)) return false;
+      if (movingDown) return platform.y > fromY + 2 && platform.y <= toY + 8;
+      return platform.y < fromY - 2 && platform.y >= toY - 8;
+    });
+    crossed.sort((a, b) => (movingDown ? a.y - b.y : b.y - a.y));
+    return crossed[0] || null;
+  }
+
+  function findUpwardPlatformThroughSupport(currentPlatform, supportY) {
     return state.platforms
       .filter((platform) => {
         if (platform.id === currentPlatform.id) return false;
-        if (!supportInView(platform.y)) return false;
-        if (platform.dropFalling) return false;
-        if (platform.y <= fromY + 2 || platform.y > toY + 8) return false;
-        return platformSupportsHero(platform);
+        if (!canTransferSupportToPlatform(platform)) return false;
+        if (!platform.moving || platform.axis !== "y") return false;
+        if (platform.y >= platform.prevY) return false;
+        return platform.prevY >= supportY - 2 && platform.y <= supportY + 4 && platform.y >= supportY - 32;
       })
-      .sort((a, b) => a.y - b.y)[0] || null;
+      .sort((a, b) => b.y - a.y)[0] || null;
+  }
+
+  function canTransferSupportToPlatform(platform) {
+    return supportInView(platform.y) && !platform.dropFalling && platformSupportsHero(platform);
+  }
+
+  function switchSupportToPlatform(platform) {
+    const hero = state.hero;
+    hero.y = platform.y;
+    hero.vy = 0;
+    hero.grounded = true;
+    hero.surface = platform.id;
+    markPlatformLanded(platform);
   }
 
   function handleCollisions(prevBottom) {
@@ -1685,6 +1715,10 @@
     resumeChargeIfInputHeld();
     playSound("landing");
 
+    markPlatformLanded(platform);
+  }
+
+  function markPlatformLanded(platform) {
     if (!platform.landed && platform.y < GROUND_Y - 26) platform.landed = true;
     if (platform.type === "drop" && !platform.dropTriggered) {
       platform.dropTriggered = true;
