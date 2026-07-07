@@ -7,7 +7,7 @@ create table if not exists public.game_attempts (
   floor integer not null check (floor >= 0 and floor <= 999),
   played_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  constraint game_attempts_player_name_length check (player_name is null or char_length(player_name) <= 6)
+  constraint game_attempts_player_name_length check (player_name is null or char_length(player_name) <= 9)
 );
 
 create table if not exists public.leaderboard_entries (
@@ -17,7 +17,7 @@ create table if not exists public.leaderboard_entries (
   floor integer not null check (floor >= 0 and floor <= 999),
   submitted_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  constraint leaderboard_player_name_length check (char_length(player_name) between 1 and 6)
+  constraint leaderboard_player_name_length check (char_length(player_name) between 1 and 9)
 );
 
 create table if not exists public.players (
@@ -29,8 +29,20 @@ create table if not exists public.players (
   first_played_at timestamptz not null default now(),
   last_played_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint players_player_name_length check (player_name is null or char_length(player_name) <= 6)
+  constraint players_player_name_length check (player_name is null or char_length(player_name) <= 9)
 );
+
+alter table public.game_attempts
+  drop constraint if exists game_attempts_player_name_length,
+  add constraint game_attempts_player_name_length check (player_name is null or char_length(player_name) <= 9);
+
+alter table public.leaderboard_entries
+  drop constraint if exists leaderboard_player_name_length,
+  add constraint leaderboard_player_name_length check (char_length(player_name) between 1 and 9);
+
+alter table public.players
+  drop constraint if exists players_player_name_length,
+  add constraint players_player_name_length check (player_name is null or char_length(player_name) <= 9);
 
 with attempt_summary as (
   select
@@ -159,7 +171,7 @@ create policy "Public can insert leaderboard entries"
 on public.leaderboard_entries
 for insert
 to anon
-with check (char_length(player_name) between 1 and 6);
+with check (char_length(player_name) between 1 and 9);
 
 drop policy if exists "Public can read leaderboard entries" on public.leaderboard_entries;
 create policy "Public can read leaderboard entries"
@@ -173,7 +185,7 @@ create policy "Public can insert players"
 on public.players
 for insert
 to anon
-with check (player_name is null or char_length(player_name) <= 6);
+with check (player_name is null or char_length(player_name) <= 9);
 
 drop policy if exists "Public can update players" on public.players;
 create policy "Public can update players"
@@ -181,7 +193,7 @@ on public.players
 for update
 to anon
 using (true)
-with check (player_name is null or char_length(player_name) <= 6);
+with check (player_name is null or char_length(player_name) <= 9);
 
 drop policy if exists "Public can read players" on public.players;
 create policy "Public can read players"

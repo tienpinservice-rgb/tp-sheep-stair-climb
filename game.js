@@ -6,6 +6,7 @@
   const ASSET = "PIC/Game assets";
   const SOUND = "sound";
   const RANK_LIMIT = 5;
+  const PLAYER_NAME_MAX_LENGTH = 9;
   const STORAGE_KEY = "sheepStairClimbDataV1";
   const DEVICE_ID_KEY = "sheepStairClimbDeviceIdV1";
   const SUPABASE_CONFIG = window.SHEEP_SUPABASE || {};
@@ -555,7 +556,7 @@
     const deviceId = getOrCreateDeviceId();
     const floor = Math.max(0, Math.min(MAX_FLOOR, Number(record.bestFloor || 0)));
     const recordTime = record.bestTimeIso || new Date().toISOString();
-    const name = options.name ? options.name.slice(0, 6) : null;
+    const name = options.name ? options.name.slice(0, PLAYER_NAME_MAX_LENGTH) : null;
     const countPlay = options.countPlay !== false;
     try {
       const current = await fetchCloudPlayer(deviceId);
@@ -1796,7 +1797,7 @@
 
   function saveRankFromDialog() {
     if (!state.finalRecord || state.pendingRankSaved) return;
-    const name = dom.playerNameInput.value.trim().slice(0, 6);
+    const name = dom.playerNameInput.value.trim().slice(0, PLAYER_NAME_MAX_LENGTH);
     if (!name) {
       abandonRankEntry();
       return;
@@ -1845,7 +1846,7 @@
     row.className = "admin-row";
     row.innerHTML = `
       <div class="admin-fields">
-        <input class="admin-name" maxlength="6" placeholder="姓名" value="${escapeAttr(player.name || "")}" />
+        <input class="admin-name" maxlength="${PLAYER_NAME_MAX_LENGTH}" placeholder="姓名" value="${escapeAttr(player.name || "")}" />
         <input class="admin-floor" type="number" min="0" step="1" placeholder="樓層" value="${Number(player.bestFloor || 0)}" />
         <input class="admin-time" placeholder="YYYY/MM/DD HH:mm" value="${escapeAttr(player.bestTimeLabel || nowStamp().label)}" />
         <input class="admin-plays" type="number" min="1" step="1" placeholder="次數" value="${Number(player.playCount || 1)}" />
@@ -1864,7 +1865,7 @@
     const data = loadData();
     const players = [];
     dom.adminRows.querySelectorAll(".admin-row").forEach((row, index) => {
-      const name = row.querySelector(".admin-name").value.trim().slice(0, 6) || `玩家${index + 1}`;
+      const name = row.querySelector(".admin-name").value.trim().slice(0, PLAYER_NAME_MAX_LENGTH) || `玩家${index + 1}`;
       const bestFloor = Math.max(0, Number.parseInt(row.querySelector(".admin-floor").value, 10) || 0);
       const bestTimeLabel = row.querySelector(".admin-time").value.trim() || nowStamp().label;
       const playCount = Math.max(1, Number.parseInt(row.querySelector(".admin-plays").value, 10) || 1);

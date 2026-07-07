@@ -161,8 +161,8 @@ player_device_id = codex_config_test
 6. 儲存。
 
 注意：
-遊戲目前限制姓名最多 6 個字。
-建議後台修改時也維持 6 個字以內。
+遊戲目前限制姓名最多 9 個字。
+建議後台修改時也維持 9 個字以內。
 players 會保存玩家目前姓名與最高紀錄。
 若要修改首頁前五名排行榜的某一筆留名紀錄，請改 leaderboard_entries。
 
@@ -184,13 +184,24 @@ best_floor 建議填 0 到 999 之間的整數。
 七、如何讓玩家不顯示在排行榜
 
 方式一：
-清空 players 的 player_name。
+刪除 leaderboard_entries 中該玩家的留名紀錄，這會直接影響首頁前五名排行榜。
 
 方式二：
-刪除 players 中該玩家整列。
+若也不希望玩家主表保留姓名，可清空 players 的 player_name。
 
 建議：
-若只是暫時不想顯示在前五名，優先清空 player_name，不一定要刪除整列。
+若只是暫時不想顯示在前五名，優先修改或刪除 leaderboard_entries，不一定要刪除 players 或 game_attempts。
+
+
+七之一、如何清空目前首頁排行榜
+
+首頁排行榜目前主要由 leaderboard_entries 產生。
+若要清空目前排行榜，請在 Supabase SQL Editor 執行專案內的：
+
+清空排行榜紀錄.sql
+
+此 SQL 只會刪除 leaderboard_entries 的留名紀錄。
+它不會刪除 players 玩家主表，也不會刪除 game_attempts 遊玩歷史。
 
 
 八、如何刪除某次遊玩紀錄
