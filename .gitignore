@@ -1,6 +1,8 @@
 .agents/
+.codegraph/
 chrome-game-qa-profile/
 PIC/Original assets/
+遊戲說明.txt
 qa-*.png
 *.psd
 *.log
