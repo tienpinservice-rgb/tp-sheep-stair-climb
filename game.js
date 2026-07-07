@@ -789,8 +789,6 @@
     state.finalRecord = null;
     window.clearTimeout(state.tutorialTimeoutId);
     hideTutorial();
-    state.tutorialStartShown = false;
-    state.tutorialCrystalShown = false;
     state.tutorialTimeoutId = 0;
     state.nextPlatformId = 1;
     state.generatedPlatformZones = new Set();
