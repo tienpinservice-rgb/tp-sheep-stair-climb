@@ -486,6 +486,17 @@ img {
   filter: drop-shadow(0 0 5px rgba(255, 255, 190, 0.75));
 }
 
+.rolling-ball {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  z-index: 14;
+  object-fit: contain;
+  pointer-events: none;
+  will-change: transform;
+  filter: drop-shadow(0 0 7px rgba(255, 245, 150, 0.85));
+}
+
 .hero {
   position: absolute;
   z-index: 16;
@@ -494,6 +505,60 @@ img {
   object-fit: contain;
   transform-origin: center bottom;
   will-change: transform;
+}
+
+.wall-layer.wall-shake {
+  animation: wallShake 500ms linear both;
+}
+
+#gameScreen.super-jump-flash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  background: #fff;
+  animation: superJumpFlash 520ms ease-out both;
+}
+
+@keyframes superJumpFlash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.48;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wallShake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  12% {
+    transform: translate3d(-8px, 4px, 0);
+  }
+  24% {
+    transform: translate3d(9px, -4px, 0);
+  }
+  36% {
+    transform: translate3d(-7px, -3px, 0);
+  }
+  48% {
+    transform: translate3d(8px, 4px, 0);
+  }
+  60% {
+    transform: translate3d(-5px, 3px, 0);
+  }
+  72% {
+    transform: translate3d(6px, -3px, 0);
+  }
+  84% {
+    transform: translate3d(-3px, 2px, 0);
+  }
 }
 
 .hud {

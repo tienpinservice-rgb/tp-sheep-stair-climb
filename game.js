@@ -62,6 +62,16 @@
   const CRYSTAL_FIRST_FLOOR = 10;
   const CRYSTAL_FLOOR_INTERVAL = 10;
   const DOUBLE_JUMP_GRANT = 3;
+  const ROLLING_BALL_W = 32;
+  const ROLLING_BALL_H = 32;
+  const ROLLING_BALL_INTERVAL_FLOORS = 20;
+  const ROLLING_BALL_FIRST_FLOOR = 20;
+  const ROLLING_BALL_GRAVITY = 980;
+  const ROLLING_BALL_SPEED = 410;
+  const ROLLING_BALL_BLINK_SPEED = 22;
+  const ROLLING_BALL_SPIN_SPEED = 780;
+  const SUPER_JUMP_HEIGHT_MULTIPLIER = 4;
+  const WALL_SHAKE_DURATION = 0.5;
   const START_TUTORIAL_DELAY_MS = 700;
 
   const $ = (id) => document.getElementById(id);
@@ -112,6 +122,7 @@
   };
 
   const crystalFrames = [path("background/TPB-01.png"), path("background/TPB-02.png")];
+  const rollingBallFrames = [path("background/TPB-03.png"), path("background/TPB-04.png")];
   const buttonImages = [
     "START-01.png",
     "START-02.png",
@@ -157,6 +168,7 @@
     ...Object.values(digitImages),
     ...Object.values(roleFrames).flat(),
     ...crystalFrames,
+    ...rollingBallFrames,
     ...buttonImages,
   ];
 
@@ -171,6 +183,7 @@
     leaderboard: { file: "Leaderboard.MP3", volume: 0.7 },
     power: { file: "power.MP3", volume: 0.45 },
     start: { file: "START.mp3", volume: 0.7 },
+    superJump: { file: "SJump.mp3.MP3", volume: 0.78 },
   };
 
   const audioState = {
@@ -227,6 +240,23 @@
     clip.play().catch(() => {});
   }
 
+  function startLoopingSound(name) {
+    if (!audioState.unlocked) return;
+    const clip = audioState.clips.get(name);
+    if (!clip || !clip.paused) return;
+    clip.loop = true;
+    clip.currentTime = 0;
+    clip.play().catch(() => {});
+  }
+
+  function stopLoopingSound(name) {
+    const clip = audioState.clips.get(name);
+    if (!clip) return;
+    clip.pause();
+    clip.loop = false;
+    clip.currentTime = 0;
+  }
+
   const dom = {
     viewport: $("viewport"),
     stage: $("stage"),
@@ -244,6 +274,7 @@
     foregroundLayer: $("foregroundLayer"),
     platformLayer: $("platformLayer"),
     groundLayer: $("groundLayer"),
+    gameWallLayer: $("gameWallLayer"),
     hero: $("hero"),
     powerMeter: $("powerMeter"),
     floorDigits: $("floorDigits"),
@@ -296,6 +327,11 @@
     nextPlatformId: 1,
     generatedPlatformZones: new Set(),
     crystalFloors: new Set(),
+    rollingBallFloors: new Set(),
+    nextRollingBallId: 1,
+    rollingBalls: [],
+    superJumpReady: false,
+    wallShakeTimer: 0,
     platformRegionPatterns: new Map(),
     platformPlacements: new Map(),
     wallSideStart: 0,
@@ -732,6 +768,8 @@
 
   function showTutorial(kind) {
     if (state.mode !== "playing" || state.gameOverPending) return;
+    cancelChargeNow();
+    state.inputHeld = false;
     const isCrystalTutorial = kind === "crystal";
     state.tutorialActive = true;
     state.tutorialKind = kind;
@@ -767,6 +805,7 @@
   function startGame() {
     startBgm();
     playSound("start");
+    stopLoopingSound("power");
     const data = loadData();
     data.totalPlays += 1;
     data.anonymousPlays += 1;
@@ -796,6 +835,14 @@
     state.nextPlatformId = 1;
     state.generatedPlatformZones = new Set();
     state.crystalFloors = new Set();
+    state.rollingBallFloors = new Set();
+    state.nextRollingBallId = 1;
+    state.rollingBalls.forEach((ball) => ball.el.remove());
+    state.rollingBalls = [];
+    state.superJumpReady = false;
+    state.wallShakeTimer = 0;
+    dom.gameWallLayer?.classList.remove("wall-shake");
+    dom.gameScreen?.classList.remove("super-jump-flash");
     state.platformRegionPatterns = new Map();
     state.platformPlacements = new Map();
     state.wallSideStart = Math.random() < 0.5 ? 0 : 1;
@@ -1285,7 +1332,7 @@
     state.hero.frameIndex = 0;
     state.hero.frameTime = 0;
     updatePower(0);
-    playSound("power");
+    startLoopingSound("power");
     dom.hero.src = chargeFrames()[0];
     renderGameObjects();
   }
@@ -1337,19 +1384,191 @@
     });
   }
 
+  function ensureRollingBalls() {
+    if (state.rollingBalls.length > 0) return;
+    if (state.floor < ROLLING_BALL_FIRST_FLOOR) return;
+    const floorMark =
+      ROLLING_BALL_FIRST_FLOOR +
+      Math.floor((state.floor - ROLLING_BALL_FIRST_FLOOR) / ROLLING_BALL_INTERVAL_FLOORS) * ROLLING_BALL_INTERVAL_FLOORS;
+    if (state.rollingBallFloors.has(floorMark)) return;
+    spawnRollingBall(floorMark);
+  }
+
+  function spawnRollingBall(floorMark) {
+    const spawnY = state.cameraY - rand(28, 96);
+    const img = document.createElement("img");
+    img.className = "rolling-ball";
+    img.src = rollingBallFrames[0];
+    img.alt = "";
+    img.draggable = false;
+    dom.platformLayer.appendChild(img);
+    state.rollingBallFloors.add(floorMark);
+    state.rollingBalls.push({
+      id: state.nextRollingBallId++,
+      el: img,
+      x: rand(FIELD_LEFT, FIELD_RIGHT - ROLLING_BALL_W),
+      y: spawnY,
+      prevY: spawnY,
+      vx: (Math.random() < 0.5 ? -1 : 1) * ROLLING_BALL_SPEED,
+      vy: 0,
+      grounded: false,
+      surface: null,
+      rotation: rand(0, 360),
+    });
+  }
+
+  function updateRollingBalls(dt, elapsed) {
+    const frame = rollingBallFrames[Math.floor(elapsed * ROLLING_BALL_BLINK_SPEED) % rollingBallFrames.length];
+    state.rollingBalls = state.rollingBalls.filter((ball) => {
+      ball.el.src = frame;
+      ball.prevY = ball.y;
+
+      if (ball.grounded) {
+        updateGroundedRollingBall(ball, dt);
+      } else {
+        updateFallingRollingBall(ball, dt);
+      }
+
+      bounceRollingBallFromWalls(ball);
+      ball.rotation += Math.sign(ball.vx || 1) * ROLLING_BALL_SPIN_SPEED * dt;
+
+      if (rollingBallTouchesHero(ball)) {
+        collectRollingBall(ball);
+        return false;
+      }
+
+      if (ball.y - state.cameraY - ROLLING_BALL_H > H + 80) {
+        ball.el.remove();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function updateGroundedRollingBall(ball, dt) {
+    const platform = state.platforms.find((item) => item.id === ball.surface);
+    if (!platform || !supportInView(platform.y) || !rollingBallSupportedByPlatform(ball, platform)) {
+      ball.grounded = false;
+      ball.surface = null;
+      ball.vy = Math.max(ball.vy, 0);
+      return;
+    }
+
+    ball.x += platform.x - platform.prevX;
+    ball.x += ball.vx * dt;
+    ball.y = platform.y;
+    if (!rollingBallSupportedByPlatform(ball, platform)) {
+      ball.grounded = false;
+      ball.surface = null;
+      ball.vy = 0;
+    }
+  }
+
+  function updateFallingRollingBall(ball, dt) {
+    ball.vy += ROLLING_BALL_GRAVITY * dt;
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
+
+    if (ball.vy < 0) return;
+    for (const platform of state.platforms) {
+      if (!supportInView(platform.y)) continue;
+      if (!rollingBallOverlapsPlatform(ball, platform)) continue;
+      if (!platformCatchesRollingBall(ball, platform)) continue;
+      ball.y = platform.y;
+      ball.vy = 0;
+      ball.grounded = true;
+      ball.surface = platform.id;
+      return;
+    }
+  }
+
+  function rollingBallSupportedByPlatform(ball, platform) {
+    const centerX = ball.x + ROLLING_BALL_W / 2;
+    return centerX >= platform.x + 4 && centerX <= platform.x + platform.width - 4;
+  }
+
+  function rollingBallOverlapsPlatform(ball, platform) {
+    const ballLeft = ball.x + 4;
+    const ballRight = ball.x + ROLLING_BALL_W - 4;
+    return ballRight >= platform.x && ballLeft <= platform.x + platform.width;
+  }
+
+  function platformCatchesRollingBall(ball, platform) {
+    const platformPrevY = Number.isFinite(platform.prevY) ? platform.prevY : platform.y;
+    const previousRelativeY = ball.prevY - platformPrevY;
+    const currentRelativeY = ball.y - platform.y;
+    const movingGrace = platform.moving && platform.axis === "y" ? VERTICAL_PLATFORM_LANDING_GRACE : 0;
+    return previousRelativeY <= PLATFORM_LANDING_TOP_TOLERANCE && currentRelativeY >= -movingGrace;
+  }
+
+  function bounceRollingBallFromWalls(ball) {
+    if (ball.x <= FIELD_LEFT) {
+      ball.x = FIELD_LEFT;
+      ball.vx = Math.abs(ball.vx);
+    } else if (ball.x + ROLLING_BALL_W >= FIELD_RIGHT) {
+      ball.x = FIELD_RIGHT - ROLLING_BALL_W;
+      ball.vx = -Math.abs(ball.vx);
+    }
+  }
+
+  function rollingBallTouchesHero(ball) {
+    const heroLeft = state.hero.x + HERO_W * 0.24;
+    const heroRight = state.hero.x + HERO_W * 0.76;
+    const heroTop = state.hero.y - HERO_H * 0.78;
+    const heroBottom = state.hero.y - HERO_H * 0.12;
+    const ballTop = ball.y - ROLLING_BALL_H;
+    return heroRight >= ball.x && heroLeft <= ball.x + ROLLING_BALL_W && heroBottom >= ballTop && heroTop <= ball.y;
+  }
+
+  function collectRollingBall(ball) {
+    state.superJumpReady = true;
+    playSound("crystal");
+    ball.el.remove();
+  }
+
+  function triggerWallShake() {
+    state.wallShakeTimer = WALL_SHAKE_DURATION;
+    if (!dom.gameWallLayer) return;
+    dom.gameWallLayer.classList.remove("wall-shake");
+    void dom.gameWallLayer.offsetWidth;
+    dom.gameWallLayer.classList.add("wall-shake");
+  }
+
+  function triggerSuperJumpFlash() {
+    if (!dom.gameScreen) return;
+    dom.gameScreen.classList.remove("super-jump-flash");
+    void dom.gameScreen.offsetWidth;
+    dom.gameScreen.classList.add("super-jump-flash");
+    window.setTimeout(() => dom.gameScreen?.classList.remove("super-jump-flash"), 520);
+  }
+
+  function updateWallShake(dt) {
+    if (state.wallShakeTimer <= 0) return;
+    state.wallShakeTimer = Math.max(0, state.wallShakeTimer - dt);
+    if (state.wallShakeTimer === 0) dom.gameWallLayer?.classList.remove("wall-shake");
+  }
+
   function releaseCharge() {
     if (!state.charging || state.mode !== "playing") return;
     const level = currentChargeLevel();
     const isAirCharge = state.chargeMode === "air";
+    const useSuperJump = state.superJumpReady;
     cancelChargeNow();
-    if (level <= 0) {
+    if (!useSuperJump && level <= 0) {
       state.hero.action = state.hero.grounded ? "stay" : "jump";
       return;
     }
 
     if (isAirCharge) state.doubleJumpCharges = Math.max(0, state.doubleJumpCharges - 1);
 
-    const desiredHeight = (H / 2) * (level / 10);
+    const effectiveLevel = useSuperJump ? 10 : level;
+    const jumpMultiplier = useSuperJump ? SUPER_JUMP_HEIGHT_MULTIPLIER : 1;
+    const desiredHeight = (H / 2) * (effectiveLevel / 10) * jumpMultiplier;
+    if (useSuperJump) {
+      state.superJumpReady = false;
+      triggerWallShake();
+      triggerSuperJumpFlash();
+    }
     state.cameraPushActive = false;
     state.hero.vy = -Math.sqrt(2 * 900 * desiredHeight);
     state.hero.y -= 1;
@@ -1359,8 +1578,8 @@
     state.hero.frameIndex = 0;
     state.hero.frameTime = 0;
     state.hero.jumpGrace = 0.08;
-    updatePower(level);
-    playSound("jump");
+    updatePower(effectiveLevel);
+    playSound(useSuperJump ? "superJump" : "jump");
     dom.hero.src = roleFrames.jump[0];
     renderGameObjects();
   }
@@ -1392,8 +1611,7 @@
     if (state.tutorialActive) return;
     if (state.mode === "playing") {
       state.inputHeld = false;
-      state.charging = false;
-      updatePower(0);
+      cancelChargeNow();
       setMode("paused");
     } else if (state.mode === "paused") {
       setMode("playing");
@@ -1415,6 +1633,8 @@
   function updateGame(dt, elapsed) {
     if (state.mode !== "playing") return;
     if (state.tutorialActive) return;
+
+    updateWallShake(dt);
 
     if (state.gameOverPending) {
       state.gameOverDelay += dt;
@@ -1453,8 +1673,10 @@
     handleCollisions(prevBottom);
     updateCamera();
     ensurePlatforms();
+    ensureRollingBalls();
     ensureClouds(dt);
     updateCrystals(elapsed);
+    updateRollingBalls(dt, elapsed);
     updateHeroFrame(dt);
     renderGameObjects();
     checkGameOver();
@@ -1531,6 +1753,7 @@
     state.chargeMs = 0;
     state.chargeStartedAt = 0;
     state.chargeMode = "ground";
+    stopLoopingSound("power");
     updatePower(0);
   }
 
@@ -1539,6 +1762,7 @@
     state.chargeMs = 0;
     state.chargeStartedAt = 0;
     state.chargeMode = "ground";
+    stopLoopingSound("power");
     updatePower(0);
   }
 
@@ -1767,6 +1991,11 @@
       }
     });
 
+    state.rollingBalls.forEach((ball) => {
+      const ballScreenY = ball.y - state.cameraY - ROLLING_BALL_H;
+      ball.el.style.transform = `translate3d(${ball.x}px, ${ballScreenY}px, 0) rotate(${ball.rotation}deg)`;
+    });
+
     state.clouds.forEach((cloud) => {
       cloud.x += cloud.speed * (state.hero.dir || 1) * 0.08;
       cloud.el.style.transform = `translate3d(${cloud.x + cloud.drift}px, ${cloud.y - state.cameraY}px, 0)`;
@@ -1780,8 +2009,7 @@
   function checkGameOver() {
     if (!state.gameOverPending && state.floor >= MAX_FLOOR) {
       state.inputHeld = false;
-      state.charging = false;
-      updatePower(0);
+      cancelChargeNow();
       endGame();
       return;
     }
@@ -1790,7 +2018,7 @@
     const groundGone = GROUND_Y - state.cameraY > H + 4;
     if (!state.gameOverPending && groundGone && heroBottom > H + 35) {
       state.inputHeld = false;
-      state.charging = false;
+      cancelChargeNow();
       playSound("fallHero");
       state.gameOverPending = true;
       state.gameOverDelay = 0;
@@ -1823,7 +2051,7 @@
     window.clearTimeout(state.tutorialTimeoutId);
     hideTutorial();
     state.inputHeld = false;
-    state.charging = false;
+    cancelChargeNow();
     state.gameOverPending = false;
     state.gameOverDelay = 0;
     const stamp = nowStamp();
