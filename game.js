@@ -73,6 +73,9 @@
   const SUPER_JUMP_HEIGHT_MULTIPLIER = 4;
   const WALL_SHAKE_DURATION = 0.5;
   const START_TUTORIAL_DELAY_MS = 700;
+  const HINT_BUBBLE_VISIBLE_MS = 8000;
+  const HINT_BUBBLE_FADE_MS = 700;
+  const HINT_BUBBLE_STACK_GAP = 8;
 
   const $ = (id) => document.getElementById(id);
   const path = (subPath) => `${ASSET}/${subPath}`;
@@ -280,6 +283,8 @@
     floorDigits: $("floorDigits"),
     pauseButton: $("pauseButton"),
     pauseOverlay: $("pauseOverlay"),
+    heroHintBubble: $("heroHintBubble"),
+    crystalHintBubble: $("crystalHintBubble"),
     tutorialOverlay: $("tutorialOverlay"),
     tutorialIllustration: $("tutorialIllustration"),
     tutorialContinueButton: $("tutorialContinueButton"),
@@ -332,6 +337,11 @@
     rollingBalls: [],
     superJumpReady: false,
     wallShakeTimer: 0,
+    hintTimers: [],
+    crystalHintWorldX: 0,
+    crystalHintWorldY: 0,
+    crystalHintPlatformId: null,
+    crystalHintMode: "crystal",
     platformRegionPatterns: new Map(),
     platformPlacements: new Map(),
     wallSideStart: 0,
@@ -768,27 +778,129 @@
 
   function showTutorial(kind) {
     if (state.mode !== "playing" || state.gameOverPending) return;
-    cancelChargeNow();
-    state.inputHeld = false;
-    const isCrystalTutorial = kind === "crystal";
-    state.tutorialActive = true;
-    state.tutorialKind = kind;
-    state.inputHeld = false;
-    cancelChargeNow();
-    dom.tutorialIllustration.src = isCrystalTutorial
-      ? path("background/illustrate-02.png")
-      : path("background/illustrate-01.png");
-    dom.tutorialIllustration.alt = isCrystalTutorial ? "天品水晶球教學" : "遊戲操作教學";
-    dom.tutorialIllustration.classList.toggle("tutorial-illustration-basic", !isCrystalTutorial);
-    dom.tutorialIllustration.classList.toggle("tutorial-illustration-crystal", isCrystalTutorial);
-    dom.tutorialOverlay.classList.add("show");
-    dom.tutorialOverlay.setAttribute("aria-hidden", "false");
+    if (kind === "crystal") {
+      showCrystalHintBubble();
+      return;
+    }
+    showHeroHintBubble();
   }
 
   function showStartTutorial() {
     if (state.mode !== "playing" || state.tutorialStartShown) return;
     state.tutorialStartShown = true;
     showTutorial("basic");
+  }
+
+  function clearHintTimers() {
+    state.hintTimers.forEach((timerId) => window.clearTimeout(timerId));
+    state.hintTimers = [];
+  }
+
+  function hideHintBubble(element) {
+    if (!element) return;
+    element.classList.remove("show", "fade");
+    element.setAttribute("aria-hidden", "true");
+  }
+
+  function showHintBubble(element, beforeShow = null) {
+    if (!element) return;
+    beforeShow?.();
+    element.classList.remove("fade");
+    element.classList.add("show");
+    element.setAttribute("aria-hidden", "false");
+  }
+
+  function scheduleHintGroupHide(elements) {
+    state.hintTimers.push(
+      window.setTimeout(() => elements.forEach((element) => element?.classList.add("fade")), HINT_BUBBLE_VISIBLE_MS),
+      window.setTimeout(() => elements.forEach(hideHintBubble), HINT_BUBBLE_VISIBLE_MS + HINT_BUBBLE_FADE_MS),
+    );
+  }
+
+  function showTimedHintBubble(element, beforeShow = null) {
+    showHintBubble(element, beforeShow);
+    scheduleHintGroupHide([element]);
+  }
+
+  function showHeroHintBubble() {
+    showTimedHintBubble(dom.heroHintBubble, () => updateTutorialHintPositions(true));
+  }
+
+  function heroHintIsVisible() {
+    return (
+      dom.heroHintBubble?.classList.contains("show") &&
+      !dom.heroHintBubble.classList.contains("fade") &&
+      dom.heroHintBubble.getAttribute("aria-hidden") === "false"
+    );
+  }
+
+  function showCrystalHintBubble(platform = null, timed = false) {
+    const target = platform || state.platforms.find((item) => item.crystalEl && !item.crystalCollected);
+    if (!target) return;
+    state.crystalHintMode = "crystal";
+    state.crystalHintPlatformId = target.id;
+    state.crystalHintWorldX = target.x + target.width / 2;
+    state.crystalHintWorldY = target.y - CRYSTAL_H - 24 + (target.crystalFloatY || 0);
+    if (timed) {
+      showTimedHintBubble(dom.crystalHintBubble, () => updateTutorialHintPositions(true));
+      return;
+    }
+    showHintBubble(dom.crystalHintBubble, () => updateTutorialHintPositions(true));
+  }
+
+  function showCrystalHintStack() {
+    clearHintTimers();
+    state.crystalHintMode = "stack";
+    state.crystalHintPlatformId = null;
+    showHintBubble(dom.heroHintBubble, () => updateTutorialHintPositions(true));
+    showHintBubble(dom.crystalHintBubble, () => updateTutorialHintPositions(true));
+    updateTutorialHintPositions(true);
+    scheduleHintGroupHide([dom.heroHintBubble, dom.crystalHintBubble]);
+  }
+
+  function showCrystalHintAtHeroPosition() {
+    clearHintTimers();
+    hideHintBubble(dom.heroHintBubble);
+    state.crystalHintMode = "hero";
+    state.crystalHintPlatformId = null;
+    showHintBubble(dom.crystalHintBubble, () => updateTutorialHintPositions(true));
+    updateTutorialHintPositions(true);
+    scheduleHintGroupHide([dom.crystalHintBubble]);
+  }
+
+  function updateTutorialHintPositions(force = false) {
+    const heroHintVisible = dom.heroHintBubble?.classList.contains("show");
+    let heroHintX = state.hero.x + HERO_W * 0.52;
+    let heroHintY = state.hero.y - state.cameraY - HERO_H - 8;
+
+    if (force || heroHintVisible) {
+      dom.heroHintBubble.style.transform = `translate3d(${heroHintX}px, ${heroHintY}px, 0) translate(-50%, -100%)`;
+    }
+
+    if (force || dom.crystalHintBubble?.classList.contains("show")) {
+      let x = state.crystalHintWorldX || W / 2;
+      let y = state.crystalHintWorldY - state.cameraY;
+
+      if (state.crystalHintMode === "stack") {
+        x = heroHintX;
+        y = heroHintY - (dom.heroHintBubble?.offsetHeight || 48) - HINT_BUBBLE_STACK_GAP;
+      } else if (state.crystalHintMode === "hero") {
+        x = heroHintX;
+        y = heroHintY;
+      } else {
+        const target = state.platforms.find(
+          (platform) => platform.id === state.crystalHintPlatformId && platform.crystalEl && !platform.crystalCollected,
+        );
+        if (target) {
+          state.crystalHintWorldX = target.x + target.width / 2;
+          state.crystalHintWorldY = target.y - CRYSTAL_H - 24 + (target.crystalFloatY || 0);
+          x = state.crystalHintWorldX;
+          y = state.crystalHintWorldY - state.cameraY;
+        }
+      }
+
+      dom.crystalHintBubble.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`;
+    }
   }
 
   function closeTutorial(event) {
@@ -831,7 +943,16 @@
     state.finalRecord = null;
     window.clearTimeout(state.tutorialTimeoutId);
     hideTutorial();
+    clearHintTimers();
+    hideHintBubble(dom.heroHintBubble);
+    hideHintBubble(dom.crystalHintBubble);
     state.tutorialTimeoutId = 0;
+    state.tutorialStartShown = false;
+    state.tutorialCrystalShown = false;
+    state.crystalHintWorldX = 0;
+    state.crystalHintWorldY = 0;
+    state.crystalHintPlatformId = null;
+    state.crystalHintMode = "crystal";
     state.nextPlatformId = 1;
     state.generatedPlatformZones = new Set();
     state.crystalFloors = new Set();
@@ -872,6 +993,7 @@
     renderFloorDigits(0);
     updatePower(0);
     setMode("playing");
+    showCrystalHintBubble();
     state.tutorialTimeoutId = window.setTimeout(showStartTutorial, START_TUTORIAL_DELAY_MS);
   }
 
@@ -1351,15 +1473,19 @@
 
   function collectCrystal(platform) {
     if (!platform.crystalEl || platform.crystalCollected) return;
+    if (!state.tutorialCrystalShown) {
+      state.tutorialCrystalShown = true;
+      if (heroHintIsVisible()) {
+        showCrystalHintStack();
+      } else {
+        showCrystalHintAtHeroPosition();
+      }
+    }
     platform.crystalCollected = true;
     platform.crystalEl.remove();
     platform.crystalEl = null;
     state.doubleJumpCharges += DOUBLE_JUMP_GRANT;
     playSound("crystal");
-    if (!state.tutorialCrystalShown) {
-      state.tutorialCrystalShown = true;
-      window.setTimeout(() => showTutorial("crystal"), 120);
-    }
   }
 
   function updateCrystals(elapsed) {
@@ -2004,6 +2130,7 @@
     const heroScreenY = state.hero.y - state.cameraY - HERO_H;
     const flip = state.hero.dir > 0 ? " scaleX(-1)" : " scaleX(1)";
     dom.hero.style.transform = `translate3d(${state.hero.x}px, ${heroScreenY}px, 0)${flip}`;
+    updateTutorialHintPositions();
   }
 
   function checkGameOver() {
@@ -2050,6 +2177,9 @@
   function endGame() {
     window.clearTimeout(state.tutorialTimeoutId);
     hideTutorial();
+    clearHintTimers();
+    hideHintBubble(dom.heroHintBubble);
+    hideHintBubble(dom.crystalHintBubble);
     state.inputHeld = false;
     cancelChargeNow();
     state.gameOverPending = false;
