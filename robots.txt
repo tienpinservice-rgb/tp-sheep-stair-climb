@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://tienpinservice-rgb.github.io/tp-sheep-stair-climb/sitemap.xml
+Sitemap: https://tienpinservice-rgb.github.io/tp-sheep-stair-climb/sitemap.txt
