@@ -150,13 +150,9 @@
     path("background/bg_03.png"),
     path("background/bg_04.png"),
     path("background/bg_05.png"),
-    path("background/bgi_05.png"),
-    path("background/illustrate-01.png"),
-    path("background/illustrate-02.png"),
     path("background/bg_Bwall.png"),
     path("background/bg_LRUwall.png"),
     path("background/Leaderboard_01.png"),
-    path("background/Leaderboard_02.png"),
     path("background/Leaderboard_02 -02.png"),
     path("background/Leaderboard_03.png"),
     path("background/LOGO_01.png"),
@@ -204,10 +200,21 @@
       clip.volume = config.volume;
       audioState.clips.set(name, clip);
     });
+  }
+
+  function ensureBgm() {
+    if (audioState.bgm) return audioState.bgm;
     audioState.bgm = new Audio(soundPath("moodmode-retro-game-music-245230.MP3"));
     audioState.bgm.loop = true;
-    audioState.bgm.preload = "auto";
+    audioState.bgm.preload = "none";
     audioState.bgm.volume = 0.16;
+    return audioState.bgm;
+  }
+
+  function loadBgmAfterImages() {
+    const bgm = ensureBgm();
+    bgm.preload = "auto";
+    bgm.load();
   }
 
   function unlockAudio() {
@@ -215,23 +222,25 @@
     if (audioState.unlocked) return;
     audioState.unlocked = true;
     audioState.clips.forEach((clip) => clip.load());
-    if (audioState.bgm) audioState.bgm.muted = false;
+    const bgm = ensureBgm();
+    bgm.muted = false;
     startBgm();
   }
 
   function startBgm() {
-    if (!audioState.unlocked || !audioState.bgm || !audioState.bgm.paused) return;
-    audioState.bgm.muted = false;
-    audioState.bgm.play().catch(() => {
+    const bgm = ensureBgm();
+    if (!audioState.unlocked || !bgm.paused) return;
+    bgm.muted = false;
+    bgm.play().catch(() => {
       audioState.unlocked = false;
     });
   }
 
   function primeMutedBgm() {
     initAudio();
-    if (!audioState.bgm) return;
-    audioState.bgm.muted = true;
-    audioState.bgm.play().catch(() => {});
+    const bgm = ensureBgm();
+    bgm.muted = true;
+    bgm.play().catch(() => {});
   }
 
   function playSound(name) {
@@ -709,12 +718,12 @@
       const img = new Image();
       img.onload = () => {
         if (img.decode) {
-          img.decode().then(resolve).catch(resolve);
+          img.decode().then(() => resolve({ src, ok: true })).catch(() => resolve({ src, ok: true }));
         } else {
-          resolve();
+          resolve({ src, ok: true });
         }
       };
-      img.onerror = resolve;
+      img.onerror = () => resolve({ src, ok: false });
       img.src = src;
     });
   }
@@ -730,14 +739,19 @@
     updateLoadingProgress();
     const imageLoads = Promise.all(
       uniqueImages.map((src) =>
-        loadImage(src).then(() => {
+        loadImage(src).then((result) => {
           loaded += 1;
           updateLoadingProgress();
+          return result;
         }),
       ),
     );
-    const timeout = new Promise((resolve) => window.setTimeout(resolve, 4500));
-    return Promise.race([imageLoads, timeout]);
+    return imageLoads.then((results) => {
+      const failed = results.filter((result) => !result.ok).map((result) => result.src);
+      if (failed.length) {
+        console.warn("Image preload skipped missing assets:", failed);
+      }
+    });
   }
 
   function hideLoadingOverlay() {
@@ -2472,9 +2486,11 @@
     dom.pauseButton.addEventListener("pointerup", togglePauseFromButton);
     dom.pauseButton.addEventListener("touchend", togglePauseFromButton, { passive: false });
     dom.pauseButton.addEventListener("click", togglePauseFromButton);
-    dom.tutorialContinueButton.addEventListener("pointerup", closeTutorial);
-    dom.tutorialContinueButton.addEventListener("touchend", closeTutorial, { passive: false });
-    dom.tutorialContinueButton.addEventListener("click", closeTutorial);
+    if (dom.tutorialContinueButton) {
+      dom.tutorialContinueButton.addEventListener("pointerup", closeTutorial);
+      dom.tutorialContinueButton.addEventListener("touchend", closeTutorial, { passive: false });
+      dom.tutorialContinueButton.addEventListener("click", closeTutorial);
+    }
     dom.restartButton.addEventListener("click", () => {
       abandonRankEntry();
       window.setTimeout(startGame, 130);
@@ -2542,7 +2558,6 @@
     window.addEventListener("resize", resizeStage);
     window.addEventListener("orientationchange", () => window.setTimeout(resizeStage, 120));
     setupAudioUnlock();
-    primeMutedBgm();
     setupInput();
     setupButtons();
     renderMenuRecords();
@@ -2550,6 +2565,8 @@
     refreshCloudRecords();
     await preloadRequiredImages();
     hideLoadingOverlay();
+    loadBgmAfterImages();
+    primeMutedBgm();
     const params = new URLSearchParams(window.location.search);
     if (params.get("admin") === "1") {
       setMode("admin");
