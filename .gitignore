@@ -2,6 +2,9 @@
 .codegraph/
 chrome-game-qa-profile/
 PIC/Original assets/
+PIC/Game assets/**/Original quality/
+PIC/Game illustration/
+PIC/Promotional images/
 遊戲說明.txt
 qa-*.png
 *.psd
