@@ -15,6 +15,7 @@
     "https://www.youtube.com/@%E5%A4%A9%E5%93%81%E5%B1%B1%E8%8E%8A%E5%9F%BA%E7%9D%A3%E5%BE%92%E5%A2%93%E5%9C%92/videos",
     "https://sites.google.com/view/tienpingroupweb/%E9%A6%96%E9%A0%81",
   ];
+  const HOT_ASSET_VERSION = "20260715-logo-audio";
   const FIELD_LEFT = 12;
   const FIELD_RIGHT = 348;
   const GROUND_LAYER_Y = 629;
@@ -78,8 +79,9 @@
   const HINT_BUBBLE_STACK_GAP = 8;
 
   const $ = (id) => document.getElementById(id);
-  const path = (subPath) => `${ASSET}/${subPath}`;
-  const soundPath = (fileName) => `${SOUND}/${fileName}`;
+  const withVersion = (url, version = "") => (version ? `${url}?v=${version}` : url);
+  const path = (subPath, version = "") => withVersion(`${ASSET}/${subPath}`, version);
+  const soundPath = (fileName, version = "") => withVersion(`${SOUND}/${fileName}`, version);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const rand = (min, max) => min + Math.random() * (max - min);
   const isSpaceKey = (event) => event.code === "Space" || event.key === " ";
@@ -157,7 +159,7 @@
     path("background/Leaderboard_03.png"),
     path("background/LOGO_01.png"),
     path("background/LOGO_02.png"),
-    path("background/LOGO_03.png"),
+    path("background/LOGO_03.png", HOT_ASSET_VERSION),
     path("background/gameover logo.png"),
     path("background/platform_01.png"),
     path("background/platform_02.png"),
@@ -204,7 +206,7 @@
 
   function ensureBgm() {
     if (audioState.bgm) return audioState.bgm;
-    audioState.bgm = new Audio(soundPath("moodmode-retro-game-music-245230.MP3"));
+    audioState.bgm = new Audio(soundPath("moodmode-retro-game-music-245230.MP3", HOT_ASSET_VERSION));
     audioState.bgm.loop = true;
     audioState.bgm.preload = "none";
     audioState.bgm.volume = 0.16;

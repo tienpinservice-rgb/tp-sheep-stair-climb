@@ -248,11 +248,11 @@ img {
 }
 
 .logo-base {
-  left: 0;
-  top: 0;
-  width: 360px;
-  height: 640px;
-  object-fit: cover;
+  left: 17px;
+  top: 139px;
+  width: 326px;
+  height: auto;
+  object-fit: contain;
   opacity: 0.98;
   z-index: 4;
 }
