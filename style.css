@@ -242,6 +242,44 @@ img {
   height: 640px;
 }
 
+.logo-stack::after {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 99px;
+  width: 326px;
+  height: 204px;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    112deg,
+    transparent 0%,
+    transparent 32%,
+    rgba(255, 255, 255, 0.18) 42%,
+    rgba(255, 248, 184, 0.82) 48%,
+    rgba(255, 255, 255, 0.96) 51%,
+    rgba(255, 248, 184, 0.68) 54%,
+    transparent 66%,
+    transparent 100%
+  );
+  background-size: 260% 100%;
+  background-position: 170% 0;
+  mix-blend-mode: screen;
+  clip-path: inset(0 0 0 0 round 10px);
+  -webkit-mask-image: url("PIC/Game assets/background/LOGO_03.png?v=20260715-logo-position");
+  mask-image: url("PIC/Game assets/background/LOGO_03.png?v=20260715-logo-position");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center top;
+  mask-position: center top;
+  -webkit-mask-size: 100% auto;
+  mask-size: 100% auto;
+  animation:
+    logoShine 3.2s ease-in-out infinite 0.35s,
+    logoDriftC 3.1s ease-in-out infinite;
+}
+
 .logo-layer {
   position: absolute;
   pointer-events: none;
@@ -249,12 +287,13 @@ img {
 
 .logo-base {
   left: 17px;
-  top: 129px;
+  top: 99px;
   width: 326px;
   height: auto;
   object-fit: contain;
   opacity: 0.98;
   z-index: 4;
+  animation: logoDriftC 3.1s ease-in-out infinite;
 }
 
 .logo-title {
@@ -296,6 +335,35 @@ img {
   }
   50% {
     translate: 3px -4px;
+  }
+}
+
+@keyframes logoDriftC {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 1px -3px;
+  }
+}
+
+@keyframes logoShine {
+  0%,
+  44% {
+    opacity: 0;
+    background-position: 170% 0;
+  }
+  53% {
+    opacity: 0.9;
+  }
+  68% {
+    opacity: 0.35;
+    background-position: -70% 0;
+  }
+  100% {
+    opacity: 0;
+    background-position: -70% 0;
   }
 }
 
