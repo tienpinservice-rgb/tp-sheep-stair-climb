@@ -86,7 +86,9 @@
   const rand = (min, max) => min + Math.random() * (max - min);
   const isSpaceKey = (event) => event.code === "Space" || event.key === " ";
   const isEnterKey = (event) => event.code === "Enter" || event.key === "Enter";
-  const ENTER_LOCK_MODES = new Set(["splash", "menu", "gameover"]);
+  const SCROLL_LOCK_MODES = new Set(["splash", "menu", "gameover"]);
+  const isEditableTarget = (target) =>
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
   const isPauseButtonEvent = (event) => event.target.closest("#pauseButton");
   const isTutorialEvent = (event) => event.target.closest("#tutorialOverlay");
   const heroLeftThirdX = () => state.hero.x + HERO_LEFT_THIRD_X;
@@ -2533,7 +2535,7 @@
         togglePause();
         return;
       }
-      if (isEnterKey(event) && ENTER_LOCK_MODES.has(state.mode)) {
+      if ((isEnterKey(event) || isSpaceKey(event)) && SCROLL_LOCK_MODES.has(state.mode) && !isEditableTarget(event.target)) {
         event.preventDefault();
         if (!event.repeat && event.target instanceof HTMLButtonElement && !event.target.disabled) {
           event.target.click();
