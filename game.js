@@ -2341,6 +2341,7 @@
 
   function preventPageGesture(event) {
     if (event.target.closest(".admin-screen") || event.target.closest("input")) return;
+    if (!dom.viewport.contains(event.target)) return;
     event.preventDefault();
   }
 
