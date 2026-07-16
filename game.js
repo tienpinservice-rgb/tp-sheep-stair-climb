@@ -86,6 +86,7 @@
   const rand = (min, max) => min + Math.random() * (max - min);
   const isSpaceKey = (event) => event.code === "Space" || event.key === " ";
   const isEnterKey = (event) => event.code === "Enter" || event.key === "Enter";
+  const ENTER_LOCK_MODES = new Set(["splash", "menu", "gameover"]);
   const isPauseButtonEvent = (event) => event.target.closest("#pauseButton");
   const isTutorialEvent = (event) => event.target.closest("#tutorialOverlay");
   const heroLeftThirdX = () => state.hero.x + HERO_LEFT_THIRD_X;
@@ -2530,6 +2531,13 @@
         state.inputHeld = false;
         releaseCharge();
         togglePause();
+        return;
+      }
+      if (isEnterKey(event) && ENTER_LOCK_MODES.has(state.mode)) {
+        event.preventDefault();
+        if (!event.repeat && event.target instanceof HTMLButtonElement && !event.target.disabled) {
+          event.target.click();
+        }
         return;
       }
       if (isSpaceKey(event) && state.mode === "playing") {
