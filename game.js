@@ -2159,7 +2159,7 @@
 
     const heroBottom = state.hero.y - state.cameraY;
     const groundGone = GROUND_Y - state.cameraY > H + 4;
-    if (!state.gameOverPending && groundGone && heroBottom > H + 35) {
+    if (!state.gameOverPending && groundGone && heroBottom > H + 60) {
       state.inputHeld = false;
       cancelChargeNow();
       playSound("fallHero");
