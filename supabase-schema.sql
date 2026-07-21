@@ -110,12 +110,119 @@ on conflict (player_device_id) do update set
   last_played_at = greatest(public.players.last_played_at, excluded.last_played_at),
   updated_at = now();
 
+create or replace function public.normalize_player_name(value text)
+returns text
+language sql
+immutable
+as $$
+  select nullif(left(btrim(value), 9), '');
+$$;
+
+create or replace function public.sync_player_from_attempt()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_name text := public.normalize_player_name(new.player_name);
+begin
+  insert into public.players (
+    player_device_id,
+    player_name,
+    best_floor,
+    best_played_at,
+    play_count,
+    first_played_at,
+    last_played_at,
+    updated_at
+  )
+  values (
+    new.player_device_id,
+    clean_name,
+    new.floor,
+    new.played_at,
+    1,
+    new.played_at,
+    new.played_at,
+    now()
+  )
+  on conflict (player_device_id) do update set
+    player_name = coalesce(clean_name, public.players.player_name),
+    best_floor = greatest(public.players.best_floor, excluded.best_floor),
+    best_played_at = case
+      when excluded.best_floor >= public.players.best_floor then excluded.best_played_at
+      else public.players.best_played_at
+    end,
+    play_count = public.players.play_count + 1,
+    first_played_at = least(public.players.first_played_at, excluded.first_played_at),
+    last_played_at = greatest(public.players.last_played_at, excluded.last_played_at),
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+create or replace function public.sync_player_from_leaderboard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_name text := public.normalize_player_name(new.player_name);
+begin
+  insert into public.players (
+    player_device_id,
+    player_name,
+    best_floor,
+    best_played_at,
+    play_count,
+    first_played_at,
+    last_played_at,
+    updated_at
+  )
+  values (
+    new.player_device_id,
+    clean_name,
+    new.floor,
+    new.submitted_at,
+    0,
+    new.submitted_at,
+    new.submitted_at,
+    now()
+  )
+  on conflict (player_device_id) do update set
+    player_name = coalesce(clean_name, public.players.player_name),
+    best_floor = greatest(public.players.best_floor, excluded.best_floor),
+    best_played_at = case
+      when excluded.best_floor >= public.players.best_floor then excluded.best_played_at
+      else public.players.best_played_at
+    end,
+    first_played_at = least(public.players.first_played_at, excluded.first_played_at),
+    last_played_at = greatest(public.players.last_played_at, excluded.last_played_at),
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_player_from_attempt_trigger on public.game_attempts;
+create trigger sync_player_from_attempt_trigger
+after insert on public.game_attempts
+for each row execute function public.sync_player_from_attempt();
+
+drop trigger if exists sync_player_from_leaderboard_trigger on public.leaderboard_entries;
+create trigger sync_player_from_leaderboard_trigger
+after insert on public.leaderboard_entries
+for each row execute function public.sync_player_from_leaderboard();
+
 drop view if exists public.leaderboard_public;
 drop view if exists public.player_best_scores;
 drop view if exists public.admin_player_summary;
 
 create or replace view public.leaderboard_public
-with (security_invoker = true)
+with (security_invoker = false)
 as
 select
   id,
@@ -126,7 +233,7 @@ from public.leaderboard_entries
 order by floor desc, submitted_at asc;
 
 create or replace view public.player_best_scores
-with (security_invoker = true)
+with (security_invoker = false)
 as
 select
   player_device_id,
@@ -148,6 +255,32 @@ select
   updated_at
 from public.players;
 
+create or replace function public.get_public_player_best(p_player_device_id text)
+returns table (
+  player_device_id text,
+  player_name text,
+  best_floor integer,
+  best_played_at timestamptz,
+  last_played_at timestamptz,
+  play_count integer
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    players.player_device_id,
+    players.player_name,
+    players.best_floor,
+    players.best_played_at,
+    players.last_played_at,
+    players.play_count
+  from public.players
+  where players.player_device_id = p_player_device_id
+  limit 1;
+$$;
+
 alter table public.game_attempts enable row level security;
 alter table public.leaderboard_entries enable row level security;
 alter table public.players enable row level security;
@@ -157,55 +290,48 @@ create policy "Public can insert game attempts"
 on public.game_attempts
 for insert
 to anon
-with check (true);
+with check (
+  player_device_id is not null
+  and char_length(btrim(player_device_id)) between 1 and 120
+  and floor >= 0
+  and floor <= 999
+  and (player_name is null or char_length(player_name) <= 9)
+);
 
 drop policy if exists "Public can read game attempts" on public.game_attempts;
-create policy "Public can read game attempts"
-on public.game_attempts
-for select
-to anon
-using (true);
 
 drop policy if exists "Public can insert leaderboard entries" on public.leaderboard_entries;
 create policy "Public can insert leaderboard entries"
 on public.leaderboard_entries
 for insert
 to anon
-with check (char_length(player_name) between 1 and 9);
+with check (
+  player_device_id is not null
+  and char_length(btrim(player_device_id)) between 1 and 120
+  and char_length(btrim(player_name)) between 1 and 9
+  and floor >= 0
+  and floor <= 999
+);
 
 drop policy if exists "Public can read leaderboard entries" on public.leaderboard_entries;
-create policy "Public can read leaderboard entries"
-on public.leaderboard_entries
-for select
-to anon
-using (true);
 
 drop policy if exists "Public can insert players" on public.players;
-create policy "Public can insert players"
-on public.players
-for insert
-to anon
-with check (player_name is null or char_length(player_name) <= 9);
-
 drop policy if exists "Public can update players" on public.players;
-create policy "Public can update players"
-on public.players
-for update
-to anon
-using (true)
-with check (player_name is null or char_length(player_name) <= 9);
-
 drop policy if exists "Public can read players" on public.players;
-create policy "Public can read players"
-on public.players
-for select
-to anon
-using (true);
 
 grant usage on schema public to anon;
-grant select, insert on public.game_attempts to anon;
-grant select, insert on public.leaderboard_entries to anon;
-grant select, insert, update on public.players to anon;
+revoke all on public.game_attempts from anon, authenticated;
+revoke all on public.leaderboard_entries from anon, authenticated;
+revoke all on public.players from anon, authenticated;
+revoke all on public.leaderboard_public from anon, authenticated;
+revoke all on public.player_best_scores from anon, authenticated;
+revoke all on public.admin_player_summary from anon, authenticated;
+revoke all on function public.normalize_player_name(text) from public, anon, authenticated;
+revoke all on function public.sync_player_from_attempt() from public, anon, authenticated;
+revoke all on function public.sync_player_from_leaderboard() from public, anon, authenticated;
+revoke all on function public.get_public_player_best(text) from public, anon, authenticated;
+
+grant insert on public.game_attempts to anon;
+grant insert on public.leaderboard_entries to anon;
 grant select on public.leaderboard_public to anon;
-grant select on public.player_best_scores to anon;
-grant select on public.admin_player_summary to anon;
+grant execute on function public.get_public_player_best(text) to anon;

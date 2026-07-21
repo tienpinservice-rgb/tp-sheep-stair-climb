@@ -68,10 +68,10 @@ GitHub Pages 僅保留遊戲實際載入素材、音效與 SEO 圖片。開發�
 
 - 玩家第一次開啟遊戲時產生匿名 `player_device_id`，保存在瀏覽器 `localStorage`。
 - 每次 Game Over 會寫入一筆 `game_attempts` 遊玩紀錄。
-- 每次 Game Over 也會更新 `players` 玩家主表的最高樓層、最高紀錄時間與遊玩次數。
-- 玩家進入前五名並輸入姓名後，會寫入一筆 `leaderboard_entries` 留名歷史，並同步更新 `players.player_name`。
-- 主畫面排行榜會讀取 Supabase `leaderboard_entries` / `leaderboard_public` 的前五筆留名紀錄，不用 `players` 去重，避免同一玩家多次留名時前五名少於五筆。
-- 個人最高紀錄會依同一瀏覽器的匿名 `player_device_id` 從 `players` / `player_best_scores` 查詢。
+- Supabase 觸發器會依 `game_attempts` 自動整理 `players` 玩家主表的最高樓層、最高紀錄時間與遊玩次數。
+- 玩家進入前五名並輸入姓名後，會寫入一筆 `leaderboard_entries` 留名歷史，Supabase 觸發器會同步整理 `players.player_name`。
+- 主畫面排行榜只會讀取 Supabase `leaderboard_public` 的前五筆公開留名紀錄，不直接讀完整 `leaderboard_entries`。
+- 個人最高紀錄會依同一瀏覽器的匿名 `player_device_id` 透過 `get_public_player_best` RPC 查詢，不直接讀完整 `players`。
 - 未設定 Supabase 或連線失敗時，會自動回到本機 `localStorage`。
 
 主畫面顯示前五名。遊戲結束後若成績進入前五名，會出現輸入框，可輸入最多九個字並送出紀錄。
@@ -100,6 +100,13 @@ window.SHEEP_SUPABASE = {
 ```
 
 玩家端不保存 IP。資料以匿名 `player_device_id` 辨識同一瀏覽器玩家的最高樓層。你可直接在 Supabase Table Editor 修改、刪除、補登資料；一般查看與修改玩家姓名、最高分、遊玩次數時，請優先使用 `players` 表。
+
+安全性設定：
+
+- 前端只使用 anon public key，不保存 service_role key。
+- anon public key 只能新增 `game_attempts`、新增 `leaderboard_entries`、讀取 `leaderboard_public`、呼叫 `get_public_player_best` 查詢同一裝置最高分。
+- `players`、`game_attempts`、`leaderboard_entries`、`admin_player_summary` 的完整查看、修改與刪除只應透過 Supabase Dashboard 登入後操作。
+- 更新 `supabase-schema.sql` 後，必須重新到 Supabase SQL Editor 執行一次，線上資料庫權限才會生效。
 
 ## 後台管理
 

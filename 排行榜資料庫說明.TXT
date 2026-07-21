@@ -10,6 +10,28 @@
 3. 進入後可以看到遊戲使用的資料表與檢視表。
 
 
+一之一、目前安全性與公開權限
+
+Supabase Dashboard 是管理後台。
+只要是登入你的 Supabase 專案並具備權限的管理者，就可以查看、修改或刪除資料。
+
+一般玩家打開遊戲時只會使用 publishable key / anon public key。
+此公開 key 不可擁有管理權限，目前規劃為：
+
+- 可以新增 game_attempts 遊玩紀錄。
+- 可以新增 leaderboard_entries 排行榜留名紀錄。
+- 可以讀取 leaderboard_public 公開前五名排行榜。
+- 可以呼叫 get_public_player_best，只查詢同一瀏覽器匿名 player_device_id 的個人最高紀錄。
+- 不可以直接讀取完整 players。
+- 不可以直接讀取完整 game_attempts。
+- 不可以直接讀取完整 leaderboard_entries。
+- 不可以讀取 admin_player_summary。
+- 不可以更新或刪除任何資料列。
+
+players 玩家主表由 Supabase trigger 自動整理，不再由玩家前端直接更新。
+若未來要做網頁版管理頁，必須使用 Supabase Auth 或 Edge Function 保護，且不可把 service_role key 放進前端。
+
+
 二、主要資料表用途
 
 1. players
@@ -19,7 +41,7 @@
 
 主要欄位：
 - player_device_id：匿名玩家 ID，用來辨識同一台裝置或同一個瀏覽器。
-- player_name：玩家姓名。玩家進入排行榜並送出姓名後，會同步更新到這裡。
+- player_name：玩家姓名。玩家進入排行榜並送出姓名後，會由 Supabase trigger 同步整理到這裡。
 - best_floor：該玩家最高樓層。
 - best_played_at：最高樓層發生時間。
 - play_count：遊玩次數。
@@ -95,7 +117,7 @@ players 則用來管理每位玩家的最高紀錄與遊玩次數。
 2. player_best_scores
 
 用途：
-依照 player_device_id 查看每位匿名玩家的最高樓層。
+後台依照 player_device_id 查看每位匿名玩家的最高樓層。
 
 主要欄位：
 - player_device_id：匿名玩家 ID。
@@ -106,6 +128,7 @@ players 則用來管理每位玩家的最高紀錄與遊玩次數。
 
 這是由 players 產生的查詢結果，不建議直接修改。
 若要影響目前最高紀錄，請修改 players。
+玩家前端不直接讀取這個 view；玩家端改用 get_public_player_best RPC 查詢自己的最高紀錄。
 
 
 3. admin_player_summary
@@ -277,10 +300,13 @@ game_attempts 是原始歷史紀錄。
 
 新版 SQL 會：
 - 建立 players 玩家主表。
+- 建立 trigger，讓 game_attempts 與 leaderboard_entries 新增資料後自動整理 players。
+- 建立 get_public_player_best RPC，讓玩家端只查詢自己的匿名裝置最高紀錄。
 - 嘗試從既有 game_attempts 與 leaderboard_entries 回填玩家姓名、最高樓層、遊玩次數。
 - 將 leaderboard_public 改為由 leaderboard_entries 產生，確保前五名依所有留名紀錄排序。
 - 保留 game_attempts 作為每局歷史紀錄。
 - 保留 leaderboard_entries 作為玩家送出留名的歷史紀錄。
+- 收緊 RLS 與 grant，避免 anon public key 讀取完整玩家資料或修改資料。
 
 
 十二、測試資料說明
@@ -309,3 +335,36 @@ game_attempts 是原始歷史紀錄。
 6. Supabase 後台可以自由修改資料，但建議保留合理分數與時間，避免排行榜顯示異常。
 
 7. 若修改或刪除資料後，遊戲畫面沒有立刻更新，請重新整理遊戲頁面。
+
+
+---------
+在 Supabase 後台執行這一行就能清空「遊戲首頁排行榜」：
+delete from public.leaderboard_entries;
+位置：
+進 Supabase 專案
+左側點 SQL Editor
+點 New query
+貼上上面那一行
+按 Run
+這只會清空首頁排行榜留名紀錄，不會刪除 players 玩家主表，也不會刪除 game_attempts 遊玩歷史。
+
+---------
+可以在 Supabase 後台看，主要看這幾個地方：
+看每位玩家玩過幾次
+到 Supabase：
+Table Editor → public → players
+看欄位：
+play_count
+這是每個匿名玩家裝置的累積遊玩次數。
+
+看所有玩家摘要
+到：
+Table Editor → public → admin_player_summary
+這個 view 會比較適合後台查看，通常會看到：
+player_device_id、player_name、best_floor、last_played_at、play_count
+
+看總遊玩局數
+到：
+Table Editor → public → game_attempts
+這張表每一列代表一次遊戲結束紀錄。
+所以 game_attempts 的總列數，就是目前累積被遊玩的總局數。
