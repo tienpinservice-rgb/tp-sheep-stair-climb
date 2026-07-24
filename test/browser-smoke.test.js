@@ -20,11 +20,16 @@ function createStorage() {
   };
 }
 
-test("Given the production page, when classic scripts load, then player records precede the game", () => {
+test("Given the production page, when classic scripts load, then game modules precede the game", () => {
   const html = fs.readFileSync(path.join(projectRoot, "index.html"), "utf8");
   const scripts = [...html.matchAll(/<script\s+src="([^"]+)"/g)].map((match) => match[1].split("?")[0]);
 
-  assert.deepEqual(scripts.slice(-3), ["supabase-config.js", "player-records.js", "game.js"]);
+  assert.deepEqual(scripts.slice(-4), [
+    "supabase-config.js",
+    "player-records.js",
+    "hero-animation.js",
+    "game.js",
+  ]);
 });
 
 test("Given a browser global, when player records load, then the game-facing module works through window", () => {

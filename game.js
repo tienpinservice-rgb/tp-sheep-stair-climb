@@ -124,6 +124,7 @@
     chargeCrystal: [path("role/GOS_03.png"), path("role/GOS_04.png")],
     jump: [path("role/JUP_01.png"), path("role/JUP_02.png"), path("role/JUP_01.png")],
   };
+  const CHARGE_FRAME_DURATION = 0.08;
 
   const crystalFrames = [path("background/TPB-01.png"), path("background/TPB-02.png")];
   const rollingBallFrames = [path("background/TPB-03.png"), path("background/TPB-04.png")];
@@ -1218,7 +1219,8 @@
   }
 
   function chargeFrames() {
-    return state.doubleJumpCharges > 0 ? roleFrames.chargeCrystal : roleFrames.charge;
+    const chargedFrames = state.doubleJumpCharges > 0 ? roleFrames.chargeCrystal : roleFrames.charge;
+    return window.SHEEP_HERO_ANIMATION.interleaveChargeFrames(roleFrames.stay, chargedFrames);
   }
 
   function currentChargeLevel() {
@@ -1471,7 +1473,7 @@
   function updateHeroFrame(dt) {
     const action = state.hero.action;
     const frames = action === "charge" ? chargeFrames() : roleFrames[action] || roleFrames.stay;
-    const frameDuration = action === "charge" ? 0.065 : 0.16;
+    const frameDuration = action === "charge" ? CHARGE_FRAME_DURATION : 0.16;
     state.hero.frameTime += dt;
     if (state.hero.frameTime >= frameDuration) {
       state.hero.frameTime = 0;
