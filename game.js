@@ -5,11 +5,7 @@
   const H = 640;
   const ASSET = "PIC/Game assets";
   const SOUND = "sound";
-  const RANK_LIMIT = 5;
   const PLAYER_NAME_MAX_LENGTH = 9;
-  const STORAGE_KEY = "sheepStairClimbDataV1";
-  const DEVICE_ID_KEY = "sheepStairClimbDeviceIdV1";
-  const SUPABASE_CONFIG = window.SHEEP_SUPABASE || {};
   const GOTO_LINKS = [
     "https://www.tienpin.com.tw",
     "https://www.youtube.com/@%E5%A4%A9%E5%93%81%E5%B1%B1%E8%8E%8A%E5%9F%BA%E7%9D%A3%E5%BE%92%E5%A2%93%E5%9C%92/videos",
@@ -343,7 +339,6 @@
     gameOverPending: false,
     gameOverDelay: 0,
     pendingRankSaved: false,
-    finalRecord: null,
     nextPlatformId: 1,
     generatedPlatformZones: new Set(),
     crystalFloors: new Set(),
@@ -384,10 +379,6 @@
     },
     platforms: [],
     clouds: [],
-    cloudEnabled: false,
-    cloudLoaded: false,
-    cloudPlayers: [],
-    cloudPersonalBest: null,
     lastPauseButtonToggleAt: 0,
     tutorialActive: false,
     tutorialKind: null,
@@ -396,124 +387,6 @@
     tutorialTimeoutId: 0,
     lastTutorialButtonAt: 0,
   };
-
-  const defaultData = () => ({
-    players: [],
-    totalPlays: 0,
-    totalUniquePlayers: 0,
-    anonymousPlays: 0,
-  });
-
-  function loadData() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return defaultData();
-      const parsed = JSON.parse(raw);
-      return {
-        ...defaultData(),
-        ...parsed,
-        players: Array.isArray(parsed.players) ? parsed.players : [],
-      };
-    } catch {
-      return defaultData();
-    }
-  }
-
-  function saveData(data) {
-    const normalized = {
-      ...defaultData(),
-      ...data,
-      players: [...data.players].sort((a, b) => b.bestFloor - a.bestFloor),
-    };
-    normalized.totalUniquePlayers = normalized.players.length;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    renderMenuRecords();
-  }
-
-  function getOrCreateDeviceId() {
-    let id = localStorage.getItem(DEVICE_ID_KEY);
-    if (id) return id;
-    const randomPart = window.crypto?.randomUUID
-      ? window.crypto.randomUUID()
-      : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    id = `sheep_${randomPart}`;
-    localStorage.setItem(DEVICE_ID_KEY, id);
-    return id;
-  }
-
-  function cloudConfigured() {
-    return Boolean(
-      SUPABASE_CONFIG.url &&
-      SUPABASE_CONFIG.anonKey &&
-      /^https?:\/\//.test(SUPABASE_CONFIG.url) &&
-      !SUPABASE_CONFIG.anonKey.includes("YOUR_"),
-    );
-  }
-
-  function cloudHeaders(extra = {}) {
-    return {
-      apikey: SUPABASE_CONFIG.anonKey,
-      Authorization: `Bearer ${SUPABASE_CONFIG.anonKey}`,
-      "Content-Type": "application/json",
-      ...extra,
-    };
-  }
-
-  async function cloudRequest(pathname, options = {}) {
-    if (!cloudConfigured()) throw new Error("Supabase is not configured.");
-    const url = `${SUPABASE_CONFIG.url.replace(/\/$/, "")}/rest/v1/${pathname}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: cloudHeaders(options.headers || {}),
-    });
-    if (!response.ok) throw new Error(`Supabase ${response.status}`);
-    if (response.status === 204) return null;
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
-  }
-
-  function mapCloudEntry(entry) {
-    return {
-      id: entry.id || entry.player_device_id,
-      name: entry.player_name || entry.latest_player_name || "未命名",
-      bestFloor: Number(entry.floor || entry.best_floor || 0),
-      bestTimeIso: entry.submitted_at || entry.best_played_at || entry.last_played_at || "",
-      bestTimeLabel: formatCloudTime(entry.submitted_at || entry.best_played_at || entry.last_played_at),
-      playCount: Number(entry.play_count || 1),
-    };
-  }
-
-  function formatCloudTime(value) {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-  }
-
-  function getActiveData() {
-    if (state.cloudLoaded) {
-      return {
-        ...defaultData(),
-        players: state.cloudPlayers,
-        totalUniquePlayers: state.cloudPlayers.length,
-      };
-    }
-    return loadData();
-  }
-
-  function topPlayers() {
-    return [...getActiveData().players].sort((a, b) => b.bestFloor - a.bestFloor).slice(0, RANK_LIMIT);
-  }
-
-  function bestPlayer() {
-    return state.cloudLoaded && state.cloudPersonalBest ? state.cloudPersonalBest : topPlayers()[0] || null;
-  }
-
-  function isTopFive(floor) {
-    const players = topPlayers();
-    return floor > 0 && (players.length < RANK_LIMIT || floor > players[players.length - 1].bestFloor);
-  }
 
   function formatFloor(num) {
     return `${String(Math.max(0, Math.floor(num))).padStart(3, "0").slice(-3)}F`;
@@ -535,99 +408,26 @@
     renderFloorImageText(dom.floorDigits, num);
   }
 
-  function renderMenuRecords() {
-    const data = getActiveData();
-    const players = [...data.players].sort((a, b) => b.bestFloor - a.bestFloor);
+  function renderMenuRecords(snapshot = playerRecords.current()) {
+    const players = snapshot.players;
     dom.menuLeaderboard.textContent = "";
-    for (let i = 0; i < RANK_LIMIT; i += 1) {
+    for (let i = 0; i < 5; i += 1) {
       const li = document.createElement("li");
       const player = players[i];
       li.textContent = player ? `${player.name || "未命名"}  ${formatFloor(player.bestFloor)}` : "---";
       dom.menuLeaderboard.appendChild(li);
     }
 
-    const best = state.cloudLoaded && state.cloudPersonalBest ? state.cloudPersonalBest : players[0];
+    const best = snapshot.personalBest;
     dom.personalBest.textContent = best
       ? `最高：${best.name || "未命名"} ${best.bestTimeLabel || ""} ${formatFloor(best.bestFloor)}`
       : "";
   }
 
-  async function refreshCloudRecords() {
-    if (!cloudConfigured()) return;
-    try {
-      state.cloudEnabled = true;
-      const deviceId = getOrCreateDeviceId();
-      const leaderboard = await cloudRequest(
-        `leaderboard_public?select=id,player_name,floor,submitted_at&limit=${RANK_LIMIT}`,
-      );
-      const personalBest = await fetchCloudPersonalBest(deviceId);
-      state.cloudPlayers = Array.isArray(leaderboard) ? leaderboard.map(mapCloudEntry) : [];
-      const best = personalBest;
-      state.cloudPersonalBest = best
-        ? {
-            id: best.player_device_id,
-            name: best.player_name || "你",
-            bestFloor: Number(best.best_floor || 0),
-            bestTimeIso: best.best_played_at || best.last_played_at || "",
-            bestTimeLabel: formatCloudTime(best.best_played_at || best.last_played_at),
-            playCount: Number(best.play_count || 0),
-          }
-        : null;
-      state.cloudLoaded = true;
-      renderMenuRecords();
-    } catch (error) {
-      console.warn("Supabase records unavailable; using local records.", error);
-      state.cloudLoaded = false;
-      state.cloudEnabled = false;
-      renderMenuRecords();
-    }
+  if (!window.SHEEP_PLAYER_RECORDS) {
+    throw new Error("player-records.js must load before game.js.");
   }
-
-  async function fetchCloudPersonalBest(deviceId) {
-    const bestScores = await cloudRequest("rpc/get_public_player_best", {
-      method: "POST",
-      body: JSON.stringify({ p_player_device_id: deviceId }),
-    });
-    return Array.isArray(bestScores) ? bestScores[0] || null : null;
-  }
-
-  async function recordCloudAttempt(record) {
-    if (!cloudConfigured()) return;
-    try {
-      await cloudRequest("game_attempts", {
-        method: "POST",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({
-          player_device_id: getOrCreateDeviceId(),
-          player_name: record.name || null,
-          floor: Math.max(0, Math.min(MAX_FLOOR, Number(record.bestFloor || 0))),
-          played_at: record.bestTimeIso,
-        }),
-      });
-      await refreshCloudRecords();
-    } catch (error) {
-      console.warn("Supabase attempt insert failed.", error);
-    }
-  }
-
-  async function saveCloudLeaderboard(record, name) {
-    if (!cloudConfigured()) return;
-    try {
-      await cloudRequest("leaderboard_entries", {
-        method: "POST",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({
-          player_device_id: getOrCreateDeviceId(),
-          player_name: name,
-          floor: Math.max(0, Math.min(MAX_FLOOR, Number(record.bestFloor || 0))),
-          submitted_at: record.bestTimeIso,
-        }),
-      });
-      await refreshCloudRecords();
-    } catch (error) {
-      console.warn("Supabase leaderboard insert failed.", error);
-    }
-  }
+  const playerRecords = window.SHEEP_PLAYER_RECORDS.create({ onChange: renderMenuRecords });
 
   function setMode(mode) {
     if (mode !== "playing") hideTutorial();
@@ -881,10 +681,7 @@
     startBgm();
     playSound("start");
     stopLoopingSound("power");
-    const data = loadData();
-    data.totalPlays += 1;
-    data.anonymousPlays += 1;
-    saveData(data);
+    playerRecords.attempt.begin();
 
     state.cameraY = 0;
     state.floor = 0;
@@ -903,7 +700,6 @@
     state.gameOverPending = false;
     state.gameOverDelay = 0;
     state.pendingRankSaved = false;
-    state.finalRecord = null;
     window.clearTimeout(state.tutorialTimeoutId);
     hideTutorial();
     clearHintTimers();
@@ -2148,18 +1944,9 @@
     cancelChargeNow();
     state.gameOverPending = false;
     state.gameOverDelay = 0;
-    const stamp = nowStamp();
     const finalFloor = state.floor;
     state.floor = finalFloor;
-    state.finalRecord = {
-      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      name: "",
-      bestFloor: finalFloor,
-      bestTimeIso: stamp.iso,
-      bestTimeLabel: stamp.label,
-      playCount: 1,
-    };
-    recordCloudAttempt(state.finalRecord);
+    const recordResult = playerRecords.attempt.finish(finalFloor);
     state.overHero = {
       x: 145,
       dir: 1,
@@ -2167,12 +1954,11 @@
       frameIndex: 0,
     };
 
-    const best = bestPlayer();
     renderFloorImageText(dom.finalFloorText, finalFloor);
-    renderFloorImageText(dom.finalBestText, Math.max(finalFloor, best?.bestFloor || 0));
+    renderFloorImageText(dom.finalBestText, recordResult.bestFloor);
     renderFloorImageText(dom.rankRecordText, finalFloor);
     dom.playerNameInput.value = "";
-    const ranked = isTopFive(finalFloor);
+    const ranked = recordResult.qualifies;
     dom.rankDialog.classList.toggle("hidden", !ranked);
     dom.normalResultDialog.classList.toggle("hidden", ranked);
     playSound("gameover");
@@ -2192,37 +1978,19 @@
   }
 
   function saveRankFromDialog() {
-    if (!state.finalRecord || state.pendingRankSaved) return;
-    const name = dom.playerNameInput.value.trim().slice(0, PLAYER_NAME_MAX_LENGTH);
-    if (!name) {
-      abandonRankEntry();
-      return;
-    }
-
-    const data = loadData();
-    const existing = data.players.find((p) => p.name === name);
-    if (existing) {
-      existing.playCount = (existing.playCount || 0) + 1;
-      if (state.finalRecord.bestFloor >= existing.bestFloor) {
-        existing.bestFloor = state.finalRecord.bestFloor;
-        existing.bestTimeIso = state.finalRecord.bestTimeIso;
-        existing.bestTimeLabel = state.finalRecord.bestTimeLabel;
-      }
-    } else {
-      data.players.push({
-        ...state.finalRecord,
-        name,
-      });
-    }
-    if (data.anonymousPlays > 0) data.anonymousPlays -= 1;
-    saveData(data);
-    saveCloudLeaderboard(state.finalRecord, name);
+    if (state.pendingRankSaved) return;
+    const outcome = playerRecords.attempt.name(dom.playerNameInput.value);
+    if (outcome.status === "ignored") return;
     state.pendingRankSaved = true;
+    if (outcome.status === "abandoned") {
+      dom.playerNameInput.value = "";
+      dom.playerNameInput.blur();
+    }
     dom.rankDialog.classList.add("hidden");
   }
 
   function abandonRankEntry() {
-    if (!state.finalRecord || state.pendingRankSaved) return;
+    if (state.pendingRankSaved || !playerRecords.attempt.abandon()) return;
     state.pendingRankSaved = true;
     dom.playerNameInput.value = "";
     dom.playerNameInput.blur();
@@ -2230,7 +1998,7 @@
   }
 
   function renderAdmin() {
-    const data = loadData();
+    const data = playerRecords.admin.current();
     dom.adminSummary.textContent = `總遊玩次數 ${data.totalPlays || 0} 次，已留名玩家 ${data.players.length} 人，未留名遊玩 ${data.anonymousPlays || 0} 次`;
     dom.adminRows.textContent = "";
     const players = [...data.players].sort((a, b) => b.bestFloor - a.bestFloor);
@@ -2258,32 +2026,19 @@
   }
 
   function saveAdminRows() {
-    const data = loadData();
-    const players = [];
-    dom.adminRows.querySelectorAll(".admin-row").forEach((row, index) => {
-      const name = row.querySelector(".admin-name").value.trim().slice(0, PLAYER_NAME_MAX_LENGTH) || `玩家${index + 1}`;
-      const bestFloor = Math.max(0, Number.parseInt(row.querySelector(".admin-floor").value, 10) || 0);
-      const bestTimeLabel = row.querySelector(".admin-time").value.trim() || nowStamp().label;
-      const playCount = Math.max(1, Number.parseInt(row.querySelector(".admin-plays").value, 10) || 1);
-      players.push({
-        id: `admin_${index}_${name}`,
-        name,
-        bestFloor,
-        bestTimeLabel,
-        bestTimeIso: bestTimeLabel,
-        playCount,
-      });
-    });
-    data.players = players;
-    data.totalUniquePlayers = players.length;
-    data.totalPlays = Math.max(data.totalPlays || 0, players.reduce((sum, p) => sum + p.playCount, 0));
-    saveData(data);
+    const rows = [...dom.adminRows.querySelectorAll(".admin-row")].map((row) => ({
+      name: row.querySelector(".admin-name").value,
+      bestFloor: row.querySelector(".admin-floor").value,
+      bestTimeLabel: row.querySelector(".admin-time").value,
+      playCount: row.querySelector(".admin-plays").value,
+    }));
+    playerRecords.admin.replace(rows);
     renderAdmin();
   }
 
   function clearAdminData() {
     if (!window.confirm("確定清空排行榜與玩家資料？")) return;
-    saveData(defaultData());
+    playerRecords.admin.clear();
     renderAdmin();
   }
 
@@ -2518,9 +2273,8 @@
     setupAudioUnlock();
     setupInput();
     setupButtons();
-    renderMenuRecords();
     renderFloorDigits(0);
-    refreshCloudRecords();
+    playerRecords.refresh();
     await preloadRequiredImages();
     hideLoadingOverlay();
     loadBgmAfterImages();
